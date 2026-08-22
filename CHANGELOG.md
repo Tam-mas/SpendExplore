@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 16:20] Fixed
+
+**Tech:** `lib/csv-parse.js` — bare mid-field quotes now literal, leading UTF-8 BOM stripped
+**Dev:** Code review across 17 inputs found two real-world breakages: (1) a stray `"` inside an unquoted field (e.g. `a"b,c`) flipped the parser into quoted mode, silently swallowing the following comma and dropping a column — now a `"` only opens quoted mode when it's the first character of a field (`field === ''`), matching Excel; any other `"` is appended literally. (2) Excel-exported bank CSVs commonly start with a UTF-8 BOM (`﻿`), which was landing inside the first header/field (e.g. `﻿Date`) and would have silently broken Task 3's header detection — now stripped once at the top of `parseCsv` before parsing starts. Also added tests pinning the row-flush guard in the KEEP direction (blank/whitespace-only lines dropped vs. empty-field and quoted-empty-field lines kept), since the existing tests only covered the DROP direction and several wrong guard formulations would have still passed them. Lone-CR (classic Mac) line endings remain an explicit, documented non-goal — noted in a source comment, not handled.
+**Plain:** Fixed two edge cases in the CSV reader: a stray quotation mark inside a word no longer eats the next column, and an invisible marker some spreadsheet exports add to the start of a file no longer sneaks into the first cell.
+**Why:** Real bank export files have both quirks, and either one would have quietly corrupted a transaction or broken next week's header-detection step in a way that's hard to trace back to this file.
+
 ### [2026-08-22 15:45] Added
 
 **Tech:** `lib/csv-parse.js` — character-level CSV parser (`parseCsv(text) → string[][]`)

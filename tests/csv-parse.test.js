@@ -30,3 +30,27 @@ test('keeps empty fields', () => {
 test('returns empty array for empty input', () => {
   assert.deepEqual(parseCsv('   '), []);
 });
+
+test('treats a bare quote mid-field as a literal character', () => {
+  assert.deepEqual(parseCsv('a"b,c')[0], ['a"b', 'c']);
+});
+
+test('strips a leading UTF-8 BOM', () => {
+  assert.deepEqual(parseCsv('﻿Date,Amount')[0], ['Date', 'Amount']);
+});
+
+test('drops a fully blank line between rows', () => {
+  assert.deepEqual(parseCsv('a,b\n\nc,d'), [['a', 'b'], ['c', 'd']]);
+});
+
+test('drops a whitespace-only line between rows', () => {
+  assert.deepEqual(parseCsv('a,b\n   \nc,d'), [['a', 'b'], ['c', 'd']]);
+});
+
+test('keeps a line of only empty fields as a real row', () => {
+  assert.deepEqual(parseCsv('a,b\n,\nc,d')[1], ['', '']);
+});
+
+test('keeps a quoted empty field as a real row', () => {
+  assert.deepEqual(parseCsv('a,b\n""\nc,d')[1], ['']);
+});
