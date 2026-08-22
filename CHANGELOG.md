@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 19:40] Fixed
+
+**Tech:** `lib/merchant-normalise.js` — `normaliseMerchant()`'s `strippedFromFront` flag, replacing the narrower `gatewayPrefixStripped`
+**Dev:** The previous fix only tracked whether the payment-gateway pattern (`SQ*`/`SMP*`/`LSP*`) had stripped a prefix, but `STRIP_PATTERNS` has two other `^`-anchored entries — `/^Direct Debit\s+\d+\s*/i` and `/^(?:Wdl|Dep)\s+/i` — that promote a token to index 0 by exactly the same mechanism, so `Wdl WK2PZP`, `Direct Debit 604135 WK2PZP`, and `Dep COBURG03` still leaked a bare reference code as the merchant name. Rather than adding two more named checks, the fix is now data-driven: during the `STRIP_PATTERNS` loop, `pattern.source.startsWith('^')` structurally identifies every front-anchored entry, and `strippedFromFront` is set if any of them actually matched. The index-0 reference-code exemption is now gated on that single flag instead of one named pattern, so a future front-anchored addition to `STRIP_PATTERNS` cannot silently reopen this hole the way the narrower fix did. The `LSP*3 Ravens ...` → `3 Ravens` guard case still passes unaffected, because "3" is one character — under `REFERENCE_CODE_RE`'s 5-character minimum — so it was never going to match the code pattern regardless of the exemption. Also tightened three test assertions from `assert.notEqual(result, oneWrongValue)` to `assert.equal(result, 'Unknown')`, since `notEqual` only rules out one specific wrong output and would not have caught a future fix landing on some other wrong value.
+**Plain:** Closed the rest of the gap from the last fix: a payment-terminal reference code stuck onto a "Wdl" or "Direct Debit" prefix (not just the gateway-style prefixes already fixed) was still being shown as if it were the shop's name instead of being discarded.
+**Why:** The reviewer's point stands generally, not just for this file: patching the one shape you can see and leaving the mechanism open is how the same bug comes back next month wearing a different prefix — worth fixing the actual rule once instead of playing whack-a-mole with each new example.
+
 ### [2026-08-22 19:34] Fixed
 
 **Tech:** `lib/merchant-normalise.js` — `normaliseMerchant()`'s reference-code exemption, plus new `trimTrailingNoise()` helper

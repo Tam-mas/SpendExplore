@@ -80,24 +80,30 @@ test('a leading digit+letter brand name is not mistaken for a reference code', (
   assert.equal(normaliseMerchant('13CABS Melbourne VI AUS Card xx4321'), '13CABS');
 });
 
-// Fix 1 (re-review gap): the first-token exemption must not apply when a
-// payment-gateway prefix (SQ*/SMP*/LSP*/...) was glued directly onto the
-// following token — that token is only "leading" because unrelated gateway
-// routing metadata was stripped in front of it, not because it is genuinely
-// the first content token of the raw description. Without this, a bare
-// reference code immediately after a gateway prefix gets wrongly promoted
-// to the merchant name.
-test('a reference code glued directly onto a gateway prefix is still stripped, not promoted to merchant', () => {
-  assert.notEqual(normaliseMerchant('SMP*COBURG03'), 'Coburg03');
-  assert.notEqual(normaliseMerchant('SQ*WK2PZP Sydney AU'), 'Wk2pzp');
-  assert.notEqual(normaliseMerchant('LSP*AB12345 Melbourne VI AUS'), 'Ab12345');
+// Fix 1 (re-review, round 2): the first-token exemption must not apply
+// when ANY front-anchored bank prefix (Direct Debit, Wdl/Dep, a
+// payment-gateway marker SQ*/SMP*/LSP*/...) was stripped ahead of the
+// following token — that token is only "leading" because unrelated prefix
+// noise was removed in front of it, not because it is genuinely the first
+// content token of the raw description. A narrower first attempt at this
+// fix only tracked the gateway-prefix case and missed that Direct Debit
+// and Wdl/Dep are front-anchored the same way; this pins all three prefix
+// families at once so the underlying invariant (not a growing list of
+// named prefixes) is what's under test.
+test('a reference code immediately after a front-anchored bank prefix is discarded, not promoted to merchant', () => {
+  assert.equal(normaliseMerchant('Wdl WK2PZP'), 'Unknown');
+  assert.equal(normaliseMerchant('Direct Debit 604135 WK2PZP'), 'Unknown');
+  assert.equal(normaliseMerchant('Dep COBURG03'), 'Unknown');
+  assert.equal(normaliseMerchant('SMP*COBURG03'), 'Unknown');
+  assert.equal(normaliseMerchant('SQ*WK2PZP Sydney AU'), 'Unknown');
+  assert.equal(normaliseMerchant('LSP*AB12345 Melbourne VI AUS'), 'Unknown');
 });
 
-// Guard case for the fix above: a gateway prefix immediately followed by a
-// REAL merchant name that happens to start with a digit must still survive.
-// This is the case a too-broad "disable exemption whenever a gateway prefix
-// was stripped" fix could break.
-test('a gateway prefix followed by a real digit-led merchant name still survives', () => {
+// Guard case for the fix above: a front-anchored bank prefix immediately
+// followed by a REAL merchant name that happens to start with a digit must
+// still survive. This is the case a too-broad "disable the exemption
+// whenever any front-anchored prefix was stripped" fix could break.
+test('a front-anchored bank prefix followed by a real digit-led merchant name still survives', () => {
   assert.equal(
     normaliseMerchant('LSP*3 Ravens Thornbury AU AUS Card xx4321 Value Date: 06/08/2026'),
     '3 Ravens'
