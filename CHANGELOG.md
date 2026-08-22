@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 08:10] Added
+
+**Tech:** `web/index.html`, `web/style.css`, `web/api.js`, `web/import-view.js`, `web/overview-view.js`, `web/app.js`; `tests/smoke.test.js`, `tests/web-modules.test.js`, `tests/overview-aggregate.test.js`
+**Dev:** A dependency-free ESM UI with Overview and Import tabs, served as-is by the existing static handler. `overview-view.js` exposes a pure `aggregateOverview(snapshot)` so category/group totals are unit-testable without a DOM. All untrusted strings (merchant text, filenames, malformed-row reasons, user-editable category labels) are HTML-escaped before interpolation, since none of it is sanitised upstream.
+**Plain:** You can now drag a bank CSV into the browser, see exactly what it detected and totals before anything saves, confirm, and see real category totals.
+**Why:** A wrong sign convention or date order silently inverting every chart was the biggest risk in this app, so the import preview had to make the detected format and totals impossible to miss before committing.
+
 ### [2026-08-23 06:35] Changed
 
 **Tech:** `server/routes/transactions.js` — `applyToPast` now stamps swept rows `categorySource: 'bulk'` instead of `'manual'`; the sweep still skips only `'manual'` rows; `tests/transaction-routes.test.js` — 2 new tests
