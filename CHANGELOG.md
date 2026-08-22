@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 16:40] Fixed
+
+**Tech:** `web/charts/scale.js`, `web/charts/chart-donut.js`, `web/charts/chart-stacked.js`, `web/charts/chart-line.js`
+
+**Dev:** Fixed `niceTicks` overshooting max by rounding the domain up to the next whole step, preventing stray gridlines past the data. Restored `.viz-donut` wrapper for proper layout flexing. Single-series charts now omit legends since the title already names them. Prevented duplicate end labels on single-point line charts.
+
+**Plain:** Donut and stacked charts now show legends only for multiple series, and duplicate value labels removed from single-point lines.
+
+**Why:** Restoring the wrapper ensures CSS layout rules work correctly. Omitting single-series legends avoids redundant identity markers when the panel title already names the series. The gridline fix ensures axis labels align with actual data bounds, not phantom ticks above them.
+
 ### [2026-08-23 11:45] Added
 
 **Tech:** `web/charts/chart-donut.js` — `renderDonut()`; `web/charts/chart-line.js` — `renderLine()`; `web/charts/chart-stacked.js` — `renderStacked()`

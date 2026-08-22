@@ -27,7 +27,7 @@ const opts = { mode: 'light', colourFor: () => '#2a78d6', title: 'T' };
 
 test('donut draws one arc path per row', () => {
   const svg = renderDonut(CATEGORICAL, opts);
-  assert.match(svg, /^<svg/);
+  assert.match(svg, /<div class="viz-donut">\s*<svg/);
   assert.equal((svg.match(/<path/g) ?? []).length, 3);
 });
 
@@ -37,6 +37,11 @@ test('donut has a hole — it is a donut, not a pie', () => {
 
 test('donut carries a legend for multiple series', () => {
   assert.match(renderDonut(CATEGORICAL, opts), /viz-legend/);
+});
+
+test('single-row donut emits no legend — the title names it', () => {
+  const single = { ...CATEGORICAL, rows: [CATEGORICAL.rows[0]] };
+  assert.doesNotMatch(renderDonut(single, opts), /viz-legend/);
 });
 
 test('donut shows the total in the centre', () => {
@@ -80,6 +85,13 @@ test('line refuses a non-chronological slice with an explanation', () => {
   assert.doesNotMatch(svg, /<polyline/);
 });
 
+test('single-point line emits exactly one value label, not two duplicates', () => {
+  const single = { ...MONTHLY, rows: [MONTHLY.rows[0]] };
+  const svg = renderLine(single, opts);
+  const valueLabels = (svg.match(/class="viz-value"/g) ?? []).length;
+  assert.equal(valueLabels, 1);
+});
+
 test('single-series line has no legend box — the title names it', () => {
   assert.doesNotMatch(renderLine(MONTHLY, opts), /viz-legend/);
 });
@@ -91,6 +103,13 @@ test('stacked area draws one band per series', () => {
   ] });
   assert.equal((svg.match(/<path/g) ?? []).length, 2);
   assert.match(svg, /viz-legend/);
+});
+
+test('single-series stacked emits no legend — the title names it', () => {
+  const svg = renderStacked(MONTHLY, { ...opts, series: [
+    { key: 'all', label: 'All Spend', values: [-300, -450, -400] }
+  ] });
+  assert.doesNotMatch(svg, /viz-legend/);
 });
 
 test('stacked area leaves a 2px surface gap between bands', () => {

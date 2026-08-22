@@ -11,8 +11,11 @@ export function niceTicks(max, count = 4) {
   const rawStep = magnitude / count;
   const power = Math.pow(10, Math.floor(Math.log10(rawStep)));
   const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= rawStep) ?? power * 10;
+  // Round the domain UP to the next whole step so the top gridline always
+  // reaches the tallest mark, without adding a stray tick past it.
+  const top = Math.ceil(magnitude / step) * step;
   const ticks = [];
-  for (let t = 0; t <= magnitude + step; t += step) ticks.push(Math.round(t * 100) / 100);
+  for (let t = 0; t <= top + step * 0.001; t += step) ticks.push(Math.round(t * 100) / 100);
   return ticks;
 }
 

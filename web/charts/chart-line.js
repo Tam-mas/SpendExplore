@@ -45,7 +45,7 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   }).join('');
 
   // Selective direct labels: first and last only.
-  const ends = [points[0], points.at(-1)].filter(Boolean);
+  const ends = points.length > 1 ? [points[0], points.at(-1)] : [points[0]];
   const endLabels = ends.map((p, i) =>
     `<text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="${i === 0 ? 'start' : 'end'}" class="viz-value">${formatMoney(p.row.value)}</text>`
   ).join('');

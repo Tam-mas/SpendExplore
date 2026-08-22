@@ -53,9 +53,11 @@ export function renderStacked(result, { title = '', colourFor, series = [] } = {
     `<text x="${(PAD.left + i * stepX).toFixed(1)}" y="${HEIGHT - 8}" text-anchor="middle" class="viz-label">${escapeHtml(row.label)}</text>`
   ).join('');
 
+  const legendHtml = series.length > 1 ? `<ul class="viz-legend">${legend}</ul>` : '';
+
   return `
   <div class="viz-stacked">
     <svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%">${bands}${xLabels}</svg>
-    <ul class="viz-legend">${legend}</ul>
+    ${legendHtml}
   </div>`;
 }

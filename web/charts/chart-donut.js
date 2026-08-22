@@ -50,5 +50,6 @@ export function renderDonut(result, { mode = 'light', colourFor, title = '' } = 
     return `<li><span class="viz-swatch" style="background:${colour}"></span>${escapeHtml(row.label)} <span class="viz-value">${formatMoney(row.value)}</span></li>`;
   }).join('');
 
-  return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">${paths}<circle class="viz-donut-hole" cx="${cx}" cy="${cy}" r="${RADIUS - THICKNESS}" fill="var(--viz-surface)"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" class="viz-total">${formatMoney(result.total)}</text></svg><ul class="viz-legend">${legend}</ul>`;
+  const legendHtml = rows.length > 1 ? `<ul class="viz-legend">${legend}</ul>` : '';
+  return `<div class="viz-donut"><svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">${paths}<circle class="viz-donut-hole" cx="${cx}" cy="${cy}" r="${RADIUS - THICKNESS}" fill="var(--viz-surface)"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" class="viz-total">${formatMoney(result.total)}</text></svg>${legendHtml}</div>`;
 }

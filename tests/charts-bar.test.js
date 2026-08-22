@@ -33,6 +33,16 @@ test('niceTicks returns ascending round numbers covering the max', () => {
   assert.deepEqual(ticks, [...ticks].sort((a, b) => a - b));
 });
 
+test('niceTicks ends at exactly the max when it is an exact multiple', () => {
+  const ticks = niceTicks(400, 4);
+  assert.equal(ticks.at(-1), 400);
+});
+
+test('niceTicks still has a tick >= max for non-multiples', () => {
+  const ticks = niceTicks(340, 4);
+  assert.ok(ticks.at(-1) >= 340);
+});
+
 test('formatMoney is grouped, two-decimal, sign-leading', () => {
   assert.equal(formatMoney(-1404.01), '-$1,404.01');
   assert.equal(formatMoney(0), '$0.00');
