@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 22:10] Fixed
+
+**Tech:** `web/charts/chart-dots.js` — restored the `<title>` hover tooltip on every dot, not just the outlier
+**Dev:** A test asserted a non-outlier amount appeared nowhere in the output, which forced tooltips off every other dot. Visible labels stay selective; tooltips are universal. The test now pins both separately.
+**Plain:** Hovering any dot on the spread chart shows that transaction's amount again, not just the biggest one.
+**Why:** The point of that chart is seeing individual transactions, so being unable to hover most of them made it much less useful.
+
 ### [2026-08-23 17:30] Added
 
 **Tech:** `web/charts/chart-treemap.js` — `squarify()`, `renderTreemap()`; `web/charts/chart-dots.js` — `renderDots()`

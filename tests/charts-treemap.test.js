@@ -90,10 +90,13 @@ test('dot plot markers are at least 8px across', () => {
   assert.match(renderDots(RESULT, { ...opts, amounts: [-10] }), /r="4"/);
 });
 
-test('dot plot labels the largest outlier only', () => {
+test('dot plot shows exactly one VISIBLE label, for the largest outlier', () => {
   const svg = renderDots(RESULT, { ...opts, amounts: [-10, -20, -30, -286.48] });
-  assert.match(svg, /-\$286\.48/);
-  assert.doesNotMatch(svg, /-\$20\.00/);
+  // Selective direct labels: one visible value, the outlier. Hover tooltips
+  // (<title>) stay on EVERY dot — they are how the user identifies a point.
+  assert.equal((svg.match(/class="viz-value"/g) ?? []).length, 1);
+  assert.match(svg, /class="viz-value">-\$286\.48</);
+  assert.equal((svg.match(/<title>/g) ?? []).length, 4);
 });
 
 test('dot plot with no amounts renders a message', () => {

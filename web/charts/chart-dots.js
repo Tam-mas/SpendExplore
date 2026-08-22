@@ -34,9 +34,10 @@ export function renderDots(result, { mode = 'light', title = '', amounts = [] } 
     const stack = occupancy.get(bucket) ?? 0;
     occupancy.set(bucket, stack + 1);
     const y = baseline - stack * (DOT_R * 2 + 1);
-    const isMax = magnitude === max;
-    const titleEl = isMax ? `<title>${formatMoney(amounts[i])}</title>` : '';
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${DOT_R}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" opacity="0.85">${titleEl}</circle>`;
+    // Every dot carries its own hover tooltip — identifying an individual
+    // point is the whole reason this chart exists. Only the VISIBLE label
+    // below is selective.
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${DOT_R}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" opacity="0.85"><title>${formatMoney(amounts[i])}</title></circle>`;
   }).join('');
 
   // Selective direct label: the single largest value only.
