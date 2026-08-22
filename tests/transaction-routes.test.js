@@ -324,3 +324,87 @@ test('a syntactically invalid JSON body on PATCH is a clean 400, not a 500', asy
     assert.match((await res.json()).error, /json/i);
   });
 });
+
+// --- Second fix round: a later bulk apply may override an earlier one ---
+
+test('a later bulk apply corrects an earlier one, but a hand-picked row survives both', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'spendexplore-txn-'));
+  const app = await startServer({ port: 0, dataDir: dir });
+  const base = `http://127.0.0.1:${app.port}`;
+  try {
+    // Four Coles rows, all normalising to the same merchant 'Coles', so
+    // applyToPast has more than one row to sweep in each direction.
+    const rows = [
+      '01/08/2026,"COLES 1234 COBURG VIC AUS","acct","cat","-10.00"',
+      '02/08/2026,"COLES 5678 PRESTON VIC AUS","acct","cat","-20.00"',
+      '03/08/2026,"COLES 9999 THORNBURY VIC AUS","acct","cat","-30.00"',
+      '04/08/2026,"COLES 1111 DOCKLANDS VIC AUS","acct","cat","-40.00"'
+    ].join('\n');
+    await fetch(`${base}/api/import/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ files: [{ filename: 'coles.csv', text: rows }] })
+    });
+    const [a, b, c, d] = await app.store.read('ledger');
+    assert.ok([a, b, c, d].every((t) => t.merchant === 'Coles'));
+
+    // D is a row the user corrected by hand, one transaction at a time —
+    // this is the permanent guarantee that must never weaken.
+    await patch(base, d.id, { categoryId: 'takeaway' });
+
+    // First bulk apply, from A: sweeps B and C ('bulk'), skips D ('manual').
+    const first = await (await patch(base, a.id, {
+      categoryId: 'alcohol', applyToPast: true
+    })).json();
+    assert.equal(first.updatedPast, 2, 'expected B and C to be swept, D skipped');
+
+    // Second bulk apply, from B (currently 'bulk' alcohol, NOT the row the
+    // user hand-picked): corrects the merchant to groceries. It must be
+    // free to re-sweep C (also 'bulk'), but must still never touch A
+    // (now 'manual', the actual PATCH target of the first apply) or D
+    // (hand-picked from the start).
+    const second = await (await patch(base, b.id, {
+      categoryId: 'groceries', applyToPast: true
+    })).json();
+    assert.equal(second.updatedPast, 1, 'expected only C to be re-swept by the second bulk apply');
+
+    const after = await app.store.read('ledger');
+    const byId = Object.fromEntries(after.map((t) => [t.id, t]));
+
+    assert.equal(byId[a.id].categoryId, 'alcohol', 'A was the first apply\'s own PATCH target — a later, different bulk apply must not override it');
+    assert.equal(byId[a.id].categorySource, 'manual');
+
+    assert.equal(byId[b.id].categoryId, 'groceries');
+    assert.equal(byId[b.id].categorySource, 'manual');
+
+    assert.equal(byId[c.id].categoryId, 'groceries', 'C should have been re-swept by the second bulk apply');
+    assert.equal(byId[c.id].categorySource, 'bulk');
+
+    assert.equal(byId[d.id].categoryId, 'takeaway', 'a hand-picked row must survive both bulk applies unchanged');
+    assert.equal(byId[d.id].categorySource, 'manual');
+
+    // Every non-manual Coles row ends up on the second apply's category.
+    const nonManual = after.filter((t) => t.merchant === 'Coles' && t.categorySource !== 'manual');
+    assert.ok(nonManual.length > 0);
+    assert.ok(nonManual.every((t) => t.categoryId === 'groceries'));
+  } finally {
+    await app.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a bulk-swept row counts as categorised, not as needing review', async () => {
+  await withImported(async (base, store) => {
+    const coles = (await store.read('ledger')).filter((t) => t.merchant === 'Coles');
+    await patch(base, coles[0].id, { categoryId: 'alcohol', applyToPast: true });
+
+    const sweptRow = (await store.read('ledger')).find((t) => t.id === coles[1].id);
+    assert.equal(sweptRow.categorySource, 'bulk');
+
+    // Everywhere the app distinguishes "needs review" from "already
+    // categorised" (see lib/ingest.js's summary.needsReview), only
+    // 'unknown' means needs review — 'manual', 'rule', 'bulk' and 'ai' are
+    // all real categorisations.
+    assert.notEqual(sweptRow.categorySource, 'unknown');
+  });
+});

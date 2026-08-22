@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 06:35] Changed
+
+**Tech:** `server/routes/transactions.js` — `applyToPast` now stamps swept rows `categorySource: 'bulk'` instead of `'manual'`; the sweep still skips only `'manual'` rows; `tests/transaction-routes.test.js` — 2 new tests
+**Dev:** Bulk-swept rows now get `categorySource: 'bulk'` instead of `'manual'`, so a later bulk apply can correct an earlier one. Only a transaction the user PATCHed individually still stays `'manual'` and stays frozen forever. `'bulk'` still counts as a real categorisation everywhere `needsReview` only counts `'unknown'`.
+**Plain:** You can now fix a mistaken bulk category change by bulk-applying the correct one, without losing any category you set on a specific transaction by hand.
+**Why:** A mis-clicked bulk apply used to be uncorrectable except one row at a time, since it stamped every swept row exactly like a hand-picked one.
+
 ### [2026-08-23 06:10] Fixed
 
 **Tech:** `server/routes/transactions.js` — `applyToPast`/`rememberRule` skip merchant `'Unknown'`, no-op PATCH skips the write, backup only fires when `updatedPast > 0`, `POST /api/categories` now backs up; `server/http.js` — invalid JSON body is now a `UserFacingError(400)`; `tests/transaction-routes.test.js` — 4 new tests, `tests/import-routes.test.js` — 1 new test

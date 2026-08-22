@@ -113,11 +113,17 @@ export function createTransactionRoutes(store, serialized) {
       for (let i = 0; i < next.length; i++) {
         if (i === index) continue;
         const t = next[i];
-        // Never let a bulk apply argue with a category the user already
-        // set by hand — on this transaction (skipped above by `i ===
-        // index`) or on any other row for the same merchant.
+        // Never let a bulk apply argue with a category the user set by
+        // hand on a SPECIFIC transaction ('manual') — that guarantee is
+        // permanent. A row a previous bulk apply swept up ('bulk') is not
+        // that: it was never a decision about that particular row, so a
+        // later bulk apply is free to correct it — this is what lets a
+        // mis-clicked "file all of Coles as Alcohol" be fixed by bulk-
+        // filing it as Groceries instead, rather than being stuck forever
+        // one row at a time. 'rule'/'unknown'/'ai' rows are ordinary
+        // automatic categorisations and were always swept.
         if (t.merchant !== merchant || t.categorySource === 'manual') continue;
-        next[i] = { ...t, categoryId: body.categoryId, categorySource: 'manual' };
+        next[i] = { ...t, categoryId: body.categoryId, categorySource: 'bulk' };
         updatedPast++;
       }
     }
