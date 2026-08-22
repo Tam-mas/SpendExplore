@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 11:45] Added
+
+**Tech:** `web/charts/chart-donut.js` — `renderDonut()`; `web/charts/chart-line.js` — `renderLine()`; `web/charts/chart-stacked.js` — `renderStacked()`
+
+**Dev:** Donut caps at 7 slices, folding remainder into "Other", with centre total and legend. Line chart plots change over time, single series, with selective labels on first/last points only. Stacked area shows multi-series composition over time, each band stroked 2px apart. All three refuse non-chronological slices with explanatory messages.
+
+**Plain:** Added three adjacent-pairlist chart forms: donut for composition, line for change over time, stacked area for how the mix shifts.
+
+**Why:** Dashboard needs multiple perspectives on spending: what categories matter (donut), how they trend (line), and whether the balance between them is shifting (stacked). Adjacent-pairlist forms are safe for the 7 validated categorical hues.
+
 ### [2026-08-23 09:10] Added
 
 **Tech:** `web/charts/scale.js` — `linearScale()`, `niceTicks()`, `formatMoney()`, `formatPercent()`, `escapeHtml()`, `concentrationLine()`; `web/charts/chart-bar.js` — `renderBar()`; `web/charts/chart-table.js` — `renderTable()`
