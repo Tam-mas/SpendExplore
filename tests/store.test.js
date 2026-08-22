@@ -98,10 +98,14 @@ test('backup on a fresh store (no data files yet) does not throw', async () => {
   }
 });
 
-test('two sequential backups never collide, even at identical timestamps', async () => {
+test('two concurrent backups never collide, even at identical timestamps', async () => {
   await withStore(async (store) => {
-    // Freeze time so both calls compute the exact same ISO timestamp,
-    // forcing the collision a naive millisecond-resolution stamp would hit.
+    // Freeze time so both calls compute the exact same ISO timestamp, then
+    // fire them WITHOUT awaiting between the two calls, so their mkdir()
+    // calls genuinely race rather than merely running back-to-back. A
+    // check-then-act (access() then mkdir()) probe can let both callers pass
+    // the check before either directory exists; only an atomic mkdir-as-the-
+    // exclusivity-check is safe against this.
     const RealDate = globalThis.Date;
     class FrozenDate extends RealDate {
       constructor(...args) {
@@ -112,14 +116,53 @@ test('two sequential backups never collide, even at identical timestamps', async
     }
     globalThis.Date = FrozenDate;
     try {
-      const p1 = await store.backup();
-      const p2 = await store.backup();
+      const [p1, p2] = await Promise.all([store.backup(), store.backup()]);
       assert.notEqual(p1, p2, 'two backups at the same timestamp must not share a directory');
       // Both directories must actually exist and be independently readable.
       await access(p1);
       await access(p2);
     } finally {
       globalThis.Date = RealDate;
+    }
+  });
+});
+
+test('concurrent writes to the same collection serialise instead of racing', async () => {
+  await withStore(async (store) => {
+    // Issue both writes synchronously (no await between them) so their
+    // internal tmp-write/rename pairs would race for real if the store did
+    // not serialise same-collection writes. The queue makes call order the
+    // execution order, so writeB — issued second — is guaranteed to run
+    // after writeA completes.
+    const writeA = store.write('ledger', [{ id: 'a' }]);
+    const writeB = store.write('ledger', [{ id: 'b' }]);
+    const results = await Promise.allSettled([writeA, writeB]);
+
+    assert.ok(
+      results.every((r) => r.status === 'fulfilled'),
+      `both concurrent writes should succeed once serialised: ${JSON.stringify(results)}`
+    );
+
+    // Because writes are serialised in call order, writeB is guaranteed to
+    // be the one that actually lands — deterministic last-writer-wins,
+    // rather than whichever caller happened to win a filesystem race (which
+    // could previously let writeA's promise fulfil while writeB's payload
+    // was what actually got renamed into place).
+    assert.deepEqual(await store.read('ledger'), [{ id: 'b' }]);
+  });
+});
+
+test('rejects collection names that only resolve via the prototype chain', async () => {
+  await withStore(async (store) => {
+    // A plain-object allow-list checked with `if (!spec)` lets these through:
+    // COLLECTIONS.toString, .constructor, .valueOf, .hasOwnProperty, and
+    // .__proto__ all resolve to a truthy inherited member of Object.prototype
+    // rather than undefined. They must be rejected by the allow-list itself
+    // (Unknown collection), not merely happen to crash on `spec.file` being
+    // undefined further down.
+    for (const name of ['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      await assert.rejects(() => store.read(name), /Unknown collection/, `read('${name}')`);
+      await assert.rejects(() => store.write(name, []), /Unknown collection/, `write('${name}')`);
     }
   });
 });

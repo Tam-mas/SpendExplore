@@ -1,11 +1,15 @@
 import { readFile, writeFile, rename, mkdir, copyFile, access } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'seed');
 
 // Allow-list of collection names. This is also the defence against a path
-// traversal via a crafted API request, so it must stay exhaustive.
+// traversal via a crafted API request, so it must stay exhaustive — and must
+// be checked with Object.hasOwn, not a truthiness check, or an inherited
+// property name (toString, constructor, __proto__, ...) resolves to a
+// truthy member of Object.prototype and slips past the guard.
 const COLLECTIONS = {
   ledger:     { file: 'ledger.json',     seed: () => [] },
   categories: { file: 'categories.json', seedFile: 'categories.json' },
@@ -21,9 +25,8 @@ const exists = async (path) => {
 
 export function createStore(dataDir) {
   const pathFor = (name) => {
-    const spec = COLLECTIONS[name];
-    if (!spec) throw new Error(`Unknown collection: ${name}`);
-    return join(dataDir, spec.file);
+    if (!Object.hasOwn(COLLECTIONS, name)) throw new Error(`Unknown collection: ${name}`);
+    return join(dataDir, COLLECTIONS[name].file);
   };
 
   async function read(name) {
@@ -45,16 +48,44 @@ export function createStore(dataDir) {
     }
   }
 
-  /** Atomic: write a temp file then rename, so the target is never half-written.
-   *  Serialisation happens before any I/O, so a value that fails to serialise
-   *  (e.g. a circular reference) never touches disk and the existing file is untouched. */
-  async function write(name, data) {
-    const path = pathFor(name);
-    const tmp = `${path}.tmp`;
+  /** Atomic: serialise, write a *uniquely named* temp file, then rename over
+   *  the target. Serialisation happens before any I/O, so a value that fails
+   *  to serialise (e.g. a circular reference) never touches disk and the
+   *  existing file is untouched. The temp filename includes a random UUID so
+   *  two concurrent writers to the same collection never share one temp file
+   *  (which would let one caller's rename silently move the other caller's
+   *  data into place while reporting its own write as successful). If the
+   *  process dies between writeFile and rename, the stale `<file>.<uuid>.tmp`
+   *  is simply orphaned — it's never renamed over the target, and harmless
+   *  leftover files like it are not cleaned up automatically, but a later
+   *  write for that collection creates its own fresh temp file rather than
+   *  reusing it, so nothing depends on it existing. */
+  async function performWrite(path, data) {
+    const tmp = `${path}.${randomUUID()}.tmp`;
     const text = JSON.stringify(data, null, 2);
     await mkdir(dataDir, { recursive: true });
     await writeFile(tmp, text, 'utf8');
     await rename(tmp, path);
+  }
+
+  // Per-collection write queue: concurrent write() calls for the SAME
+  // collection must not interleave, or their independent tmp-write/rename
+  // pairs can race arbitrarily (whichever rename runs last wins, regardless
+  // of which caller's promise fulfils first). Chaining onto a promise keyed
+  // by collection name forces same-collection writes to run one at a time,
+  // in call order, so success/failure always reflects what actually landed.
+  const writeChains = new Map();
+
+  async function write(name, data) {
+    const path = pathFor(name);
+    const previous = writeChains.get(name) ?? Promise.resolve();
+    const run = () => performWrite(path, data);
+    const result = previous.then(run, run);
+    // Keep the chain itself always-resolving so one failed write doesn't
+    // permanently wedge every later write to the same collection; the
+    // caller still observes `result`'s real outcome for their own write.
+    writeChains.set(name, result.catch(() => {}));
+    return result;
   }
 
   async function defaultFor(name) {
@@ -72,25 +103,36 @@ export function createStore(dataDir) {
 
   /**
    * Snapshot every data file into data/backups/<timestamp>/ before an import
-   * mutates anything. The timestamp is millisecond-resolution, so two backups
-   * requested in the same millisecond would otherwise collide and the second
-   * would silently overwrite the first; probe for an existing directory and
-   * disambiguate with a numeric suffix so every call gets its own directory.
+   * mutates anything. The timestamp is millisecond-resolution, so two
+   * concurrent (or same-millisecond) backups need real exclusivity, not just
+   * a check-then-act probe — access()-then-mkdir is TOCTOU and both callers
+   * can pass the check before either creates the directory. Instead, a
+   * *non-recursive* mkdir is the exclusivity check itself: mkdir is atomic
+   * at the filesystem level, so exactly one caller can successfully create a
+   * given directory name. A caller that loses the race gets EEXIST and
+   * retries with the next numeric suffix until it claims a free name.
    */
   async function backup() {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupsDir = join(dataDir, 'backups');
-    let dir = join(backupsDir, stamp);
-    let suffix = 1;
-    while (await exists(dir)) {
-      dir = join(backupsDir, `${stamp}-${suffix++}`);
+    await mkdir(backupsDir, { recursive: true });
+
+    let suffix = 0;
+    for (;;) {
+      const candidate = suffix === 0 ? stamp : `${stamp}-${suffix}`;
+      const dir = join(backupsDir, candidate);
+      try {
+        await mkdir(dir);
+      } catch (err) {
+        if (err.code === 'EEXIST') { suffix += 1; continue; }
+        throw err;
+      }
+      for (const name of Object.keys(COLLECTIONS)) {
+        const src = pathFor(name);
+        if (await exists(src)) await copyFile(src, join(dir, COLLECTIONS[name].file));
+      }
+      return dir;
     }
-    await mkdir(dir, { recursive: true });
-    for (const name of Object.keys(COLLECTIONS)) {
-      const src = pathFor(name);
-      if (await exists(src)) await copyFile(src, join(dir, COLLECTIONS[name].file));
-    }
-    return dir;
   }
 
   return { read, write, init, backup, dataDir };
