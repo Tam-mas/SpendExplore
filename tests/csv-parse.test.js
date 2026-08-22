@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv } from '../lib/csv-parse.js';
+import { parseCsv, parseCsvWithLines } from '../lib/csv-parse.js';
 
 test('parses plain rows', () => {
   assert.deepEqual(parseCsv('a,b,c\n1,2,3'), [['a','b','c'], ['1','2','3']]);
@@ -53,4 +53,29 @@ test('keeps a line of only empty fields as a real row', () => {
 
 test('keeps a quoted empty field as a real row', () => {
   assert.deepEqual(parseCsv('a,b\n""\nc,d')[1], ['']);
+});
+
+test('parseCsvWithLines reports sequential physical line numbers for plain rows', () => {
+  const records = parseCsvWithLines('a,b\nc,d\ne,f');
+  assert.deepEqual(records.map((r) => r.line), [1, 2, 3]);
+});
+
+test('parseCsvWithLines advances the line number across a dropped blank line', () => {
+  const records = parseCsvWithLines('a,b\n\nc,d');
+  // Physical line 2 is blank and dropped; "c,d" genuinely starts on line 3.
+  assert.deepEqual(records.map((r) => r.line), [1, 3]);
+});
+
+test('parseCsvWithLines reports the STARTING line of a record with an embedded newline, and the next record\'s true line after it', () => {
+  const records = parseCsvWithLines('a,b\n"line1\nline2",c\nd,e');
+  assert.equal(records.length, 3);
+  assert.equal(records[0].line, 1);          // a,b
+  assert.equal(records[1].line, 2);          // "line1\nline2",c -- starts on line 2
+  assert.equal(records[1].fields[0], 'line1\nline2');
+  assert.equal(records[2].line, 4);          // d,e is on physical line 4, not 3
+});
+
+test('parseCsv is a plain fields-only projection of parseCsvWithLines', () => {
+  const text = 'a,b\n\nc,d';
+  assert.deepEqual(parseCsv(text), parseCsvWithLines(text).map((r) => r.fields));
 });

@@ -136,7 +136,7 @@ test('preview and commit equivalence: calling ingest() twice with identical argu
   };
   const preview = ingest(args);
   const commit = ingest(args);
-  assert.deepEqual(preview, commit);
+  assert.deepStrictEqual(preview, commit);
 });
 
 test('a file where every row is malformed returns no transactions but a populated malformed list, without throwing', async () => {
@@ -171,4 +171,121 @@ test('a refund for a merchant with prior spend in the SAME file nets to that cat
   const refund = r.transactions.find((t) => t.amount > 0);
   assert.equal(refund.categoryId, 'groceries');
   assert.equal(refund.categorySource, 'rule');
+});
+
+test('a refund appearing BEFORE its purchase in the same file still nets to that category (order independence)', async () => {
+  const text =
+    '19/08/2026,"COLES 0592 COBURG VI AUS Card xx4321","acct","cat","20.00"\n' +
+    '18/08/2026,"COLES 0592 COBURG VI AUS Card xx4321","acct","cat","-64.15"\n';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_015', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  const refund = r.transactions.find((t) => t.amount > 0);
+  assert.equal(refund.categoryId, 'groceries');
+  assert.equal(refund.categorySource, 'rule');
+});
+
+test('a refund nets to its category even when the matching spend row is itself a duplicate already in the ledger', async () => {
+  const spendText = '18/08/2026,"COLES 0592 COBURG VI AUS Card xx4321","acct","cat","-64.15"\n';
+  const spendOnly = ingest({
+    text: spendText, accountId: 'spending', importId: 'imp_test_016a', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  const existingIds = new Set(spendOnly.transactions.map((t) => t.id));
+
+  const text =
+    '18/08/2026,"COLES 0592 COBURG VI AUS Card xx4321","acct","cat","-64.15"\n' +
+    '19/08/2026,"COLES 0592 COBURG VI AUS Card xx4321","acct","cat","20.00"\n';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_016b', rules: RULES,
+    existingIds, existingMerchants: new Set()
+  });
+
+  // The spend row is a duplicate and correctly excluded from `transactions`...
+  assert.equal(r.transactions.length, 1);
+  // ...but the refund still nets to groceries, not income, because the
+  // merchants-with-spend set is built from every candidate row (`indexed`),
+  // not just the ones that survive deduplication.
+  const refund = r.transactions[0];
+  assert.equal(refund.amount, 20.00);
+  assert.equal(refund.categoryId, 'groceries');
+  assert.equal(refund.categorySource, 'rule');
+});
+
+// --- Error-path tests added after code review ---
+
+test('a header-only CSV (zero data rows) does not throw and reports a file-level malformed entry', async () => {
+  const text = 'Date,Description,Amount\n';
+  assert.doesNotThrow(() => {
+    const r = ingest({
+      text, accountId: 'spending', importId: 'imp_test_013', rules: RULES,
+      existingIds: new Set(), existingMerchants: new Set()
+    });
+    assert.equal(r.format, null);
+    assert.equal(r.transactions.length, 0);
+    assert.equal(r.malformed.length, 1);
+    assert.equal(r.malformed[0].line, 0);
+  });
+});
+
+test('a single line of complete garbage does not throw and reports a file-level malformed entry', async () => {
+  const text = 'complete garbage no commas here';
+  assert.doesNotThrow(() => {
+    const r = ingest({
+      text, accountId: 'spending', importId: 'imp_test_014', rules: RULES,
+      existingIds: new Set(), existingMerchants: new Set()
+    });
+    assert.equal(r.format, null);
+    assert.equal(r.transactions.length, 0);
+    assert.equal(r.malformed.length, 1);
+  });
+});
+
+test('reports the true physical line across a leading blank line', async () => {
+  const text = '\n' + await loadFixture() + '\nnot-a-date,"BROKEN ROW","acct","cat","abc"';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_009', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  assert.equal(r.transactions.length, 6);
+  assert.equal(r.malformed.length, 1);
+  assert.equal(r.malformed[0].line, 8);
+});
+
+test('reports the true physical line across a blank line immediately before the bad row', async () => {
+  const text = await loadFixture() + '\n\nnot-a-date,"BROKEN ROW","acct","cat","abc"';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_010', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  assert.equal(r.transactions.length, 6);
+  assert.equal(r.malformed.length, 1);
+  assert.equal(r.malformed[0].line, 8);
+});
+
+test('reports the true physical line after a record containing an embedded newline in a quoted field', async () => {
+  const fixtureText = await loadFixture();
+  const textWithEmbeddedNewline = fixtureText.replace('MYKI PAYMENTS MELBOURNE', 'MYKI PAYMENTS\nMELBOURNE');
+  const text = textWithEmbeddedNewline + '\nnot-a-date,"BROKEN ROW","acct","cat","abc"';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_011', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  assert.equal(r.transactions.length, 6);
+  assert.equal(r.malformed.length, 1);
+  assert.equal(r.malformed[0].line, 8);
+});
+
+test('reports the true physical line correctly when the file has a header row', async () => {
+  const header = 'Date,Description,Account,Category,Amount';
+  const text = header + '\n' + await loadFixture() + '\nnot-a-date,"BROKEN ROW","acct","cat","abc"';
+  const r = ingest({
+    text, accountId: 'spending', importId: 'imp_test_012', rules: RULES,
+    existingIds: new Set(), existingMerchants: new Set()
+  });
+  assert.equal(r.format.hasHeader, true);
+  assert.equal(r.transactions.length, 6);
+  assert.equal(r.malformed.length, 1);
+  assert.equal(r.malformed[0].line, 8);
 });
