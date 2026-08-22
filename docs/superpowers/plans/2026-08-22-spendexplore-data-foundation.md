@@ -195,10 +195,16 @@ Create `lib/csv-parse.js`:
 ```js
 /**
  * Parse CSV text into rows of raw string fields.
- * Handles quoted fields, embedded commas and newlines, escaped quotes ("")
- * and both LF and CRLF line endings. Does not interpret headers or types.
+ * Handles quoted fields, embedded commas and newlines, escaped quotes (""),
+ * a leading UTF-8 BOM, and both LF and CRLF line endings. A bare quote
+ * mid-field is literal. Lone-CR (classic Mac) endings are NOT supported.
+ * Does not interpret headers or types.
  */
 export function parseCsv(text) {
+  // Excel-exported bank CSVs commonly carry a UTF-8 BOM; left in place it
+  // would make the first header cell "\ufeffDate" and break column detection.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
   const rows = [];
   let row = [];
   let field = '';
@@ -218,7 +224,15 @@ export function parseCsv(text) {
       continue;
     }
 
-    if (ch === '"') { inQuotes = true; seenAnyChar = true; continue; }
+    // Only a quote at the START of a field opens a quoted field. A bare quote
+    // mid-field is literal data (Excel's behaviour) — treating it as an opener
+    // would swallow the next delimiter and silently drop a column.
+    if (ch === '"') {
+      seenAnyChar = true;
+      if (field === '') { inQuotes = true; continue; }
+      field += ch;
+      continue;
+    }
     if (ch === ',') { row.push(field); field = ''; seenAnyChar = true; continue; }
     if (ch === '\r') continue;
     if (ch === '\n') {
