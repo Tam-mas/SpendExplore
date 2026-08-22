@@ -1048,11 +1048,12 @@ export function query(snapshot, spec = {}) {
 
   if (!ORDERED_SLICES.has(sliceBy)) {
     const direction = sort.dir === 'asc' ? 1 : -1;
-    rows.sort((a, b) =>
-      sort.by === 'label'
-        ? direction * a.label.localeCompare(b.label)
-        : direction * (Math.abs(b.value) - Math.abs(a.value))
-    );
+    rows.sort((a, b) => {
+      if (sort.by === 'label') return direction * a.label.localeCompare(b.label);
+      const byValue = direction * (Math.abs(a.value) - Math.abs(b.value));
+      // Ties must resolve deterministically, not by bucket insertion order.
+      return byValue !== 0 ? byValue : -a.label.localeCompare(b.label);
+    });
   }
 
   const rowCount = rows.length;
