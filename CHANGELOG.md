@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 14:35] Added
+
+**Tech:** `lib/query/measures.js` — `measure(rows, name)`, `MEASURES`, `round2()`, `medianOf()`; `lib/query/stats.js` — `concentrationStats(rows)`
+**Dev:** `measure` reduces a transaction bucket to one number (`sum`, `count`, `avg`, `median`, `pctOfTotal`). `round2` prevents float leakage (e.g., `-0.1 + -0.2` becomes `-0.3`, not a float artifact). `concentrationStats` returns a bucket's shape: transaction count, median, largest transaction, and `top3Share` — the fraction of absolute total from the three largest. `top3Share` near 1 means a few big spends; near 0 means many small ones.
+**Plain:** You can now reduce spending buckets to single numbers, measure their shape to see if a category is a handful of big purchases or death by a thousand cuts, and detect float errors.
+**Why:** Analysis needs aggregates: totals, averages, medians. Concentration stats answer the app's core question — is this category driven by a few big transactions or many small ones? — which none of the basic measures capture alone.
+
 ### [2026-08-23 08:51] Added
 
 **Tech:** `lib/query/group-by.js` — `groupBy(transactions, sliceBy, ctx)`, `SLICES`, `TIME_SLICES`
