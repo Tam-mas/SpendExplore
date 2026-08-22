@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 09:10] Added
+
+**Tech:** `web/charts/scale.js` — `linearScale()`, `niceTicks()`, `formatMoney()`, `formatPercent()`, `escapeHtml()`, `concentrationLine()`; `web/charts/chart-bar.js` — `renderBar()`; `web/charts/chart-table.js` — `renderTable()`
+
+**Dev:** Scale helpers transform data for charting: linearScale maps domain to pixel range, niceTicks generates round axis ticks, formatMoney/Percent format values for display, escapeHtml neutralises untrusted markup from descriptions and labels. renderBar emits an SVG horizontal bar chart with direct labels on every bar (palette contrast relief). renderTable outputs an HTML table as the accessible relief for color-blind readers and the palette's light-mode contrast WARN.
+
+**Plain:** Added scale utilities and two chart renderers — a horizontal bar chart and an accessible data table — both pure string-builders with no DOM, ready for testing in Node.
+
+**Why:** Charts are pure string functions so they're fully testable without DOM. The table view is mandated by palette contrast limits and serves color-blind users. Direct labels on every bar satisfy the same relief requirement and make the visual self-describing.
+
 ### [2026-08-23 16:10] Added
 
 **Tech:** `web/charts/palette.js` — `GROUP_SLOTS`, `SEQUENTIAL_BLUE`, `SURFACES`, `TEXT`, `DIVERGING`, `colourForGroup()`, `colourForCategory()`, `sequentialColour()`, `cssVariables()`  
