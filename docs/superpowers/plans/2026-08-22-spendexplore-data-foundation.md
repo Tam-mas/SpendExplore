@@ -834,8 +834,11 @@ Create `lib/dedupe-hash.js`:
 ```js
 import { createHash } from 'node:crypto';
 
+// Separator between joined key fields.
+const FIELD_SEP = '\u241f';
+
 const groupKey = (row) =>
-  [row.accountId, row.date, row.amount.toFixed(2), row.rawDescription].join(' ');
+  [row.accountId, row.date, row.amount.toFixed(2), row.rawDescription].join(FIELD_SEP);
 
 /**
  * Stable id for a transaction. Identical input always yields the same id, so
@@ -843,7 +846,7 @@ const groupKey = (row) =>
  */
 export function transactionId({ accountId, date, amount, rawDescription, occurrenceIndex }) {
   const key = [accountId, date, Number(amount).toFixed(2), rawDescription, occurrenceIndex]
-    .join(' ');
+    .join(FIELD_SEP);
   return createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16);
 }
 
