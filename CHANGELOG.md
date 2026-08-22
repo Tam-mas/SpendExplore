@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 10:30] Added
+
+**Tech:** `web/filter-bar.js` — `filterOptions()`, `renderFilterBar()`, `toQueryFilters()`, `readFilterBar()`, `mountFilterBar()`
+
+**Dev:** Filter bar derives options from ledger data: months span first-to-last transaction (newest first), people from account `cardOwners` plus Joint. `toQueryFilters()` converts UI shape `{ month, accountIds, people, groupIds }` to query shape `{ dateFrom, dateTo, ... }`. Escapes user-authored names before HTML interpolation.
+
+**Plain:** Global filter bar sits above all panels, re-slicing them at once using a single filter spec.
+
+**Why:** This bridges the gap between "what's selected in the filter UI" and "what query should the panels run". Options are never hardcoded — they derive from the actual data so users never see months with no transactions.
+
 ### [2026-08-23 10:15] Added
 
 **Tech:** `web/panel.js` — `createPanel()`, `colourResolver()`, `mount()`; appended to `web/style.css`
