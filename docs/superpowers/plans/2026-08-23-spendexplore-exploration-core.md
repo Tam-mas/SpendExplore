@@ -151,7 +151,7 @@ const ROWS = [
   t({ id: 'c', date: '2026-08-15', amount: -5, categoryId: 'uncategorised', merchant: 'Sunshine Deli' }),
   t({ id: 'd', date: '2026-08-20', amount: 4200, categoryId: 'income', merchant: 'Payroll' }),
   t({ id: 'e', date: '2026-08-21', amount: -50, categoryId: 'groceries', excluded: true }),
-  t({ id: 'f', date: '2026-08-22', amount: -30, accountId: 'card', cardSuffix: null })
+  t({ id: 'f', date: '2026-08-22', amount: -30, accountId: 'card', cardSuffix: null, categoryId: 'uncategorised', merchant: 'Card charge' })
 ];
 
 const ctx = buildContext(SNAPSHOT);
