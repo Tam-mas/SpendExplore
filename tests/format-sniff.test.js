@@ -80,3 +80,70 @@ test('parseAmount strips currency symbols and separators', () => {
   assert.equal(parseAmount(''), null);
   assert.equal(parseAmount('abc'), null);
 });
+
+// --- Fix wave: review findings ---
+
+test('picks the transaction column over the balance column on a credit-card layout (positive charges, negative running balance)', () => {
+  const rows = parseCsv([
+    '22/08/2026,"COLES",50.00,-200.00',
+    '18/08/2026,"ALDI",30.00,-250.00',
+    '11/08/2026,"MYKI",7.35,-280.00'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.mapping.amount, 2);
+});
+
+test('picks the transaction column over the balance column on an overdrawn account (both columns negative, balance nearer zero)', () => {
+  const rows = parseCsv([
+    '22/08/2026,"COLES",-8.00,-3.00',
+    '18/08/2026,"ALDI",-14.00,-11.00'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.mapping.amount, 2);
+});
+
+test('detects a header row when the date is not in column 0', () => {
+  const rows = parseCsv([
+    'Bank Account,Date,Narrative,Amount,Balance',
+    'Everyday,22/08/2026,"COLES","-10.00","1234.00"',
+    'Everyday,18/08/2026,"ALDI","-64.15","1244.00"',
+    'Everyday,11/08/2026,"MYKI","-7.35","1308.15"'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.hasHeader, true);
+  assert.equal(f.mapping.date, 1);
+  assert.equal(f.mapping.amount, 3);
+});
+
+test('throws when the file is a single header-shaped row with no data', () => {
+  const rows = parseCsv('Date,Description,Amount');
+  assert.throws(() => sniffFormat(rows), /header but no data rows/);
+});
+
+test('picks the merchant column as description even when the account name is longer', () => {
+  const rows = parseCsv([
+    '22/08/2026,"ALDI 3","Joint Everyday Transaction Account"',
+    '18/08/2026,"COLES 5","Joint Everyday Transaction Account"',
+    '11/08/2026,"MYKI","Joint Everyday Transaction Account"'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.mapping.description, 1);
+});
+
+test('does not label a bank category column as account when it is the only leftover text column', () => {
+  const rows = parseCsv('Date,Description,Category,Amount\n22/08/2026,"COLES","Groceries","-10.00"\n18/08/2026,"ALDI","Groceries","-64.15"');
+  const f = sniffFormat(rows);
+  assert.equal(f.mapping.account, null);
+});
+
+test('flags a self-contradictory date column (mixed DD/MM and MM/DD rows) as low confidence', () => {
+  const rows = parseCsv('22/08/2026,"COLES","-10.00"\n08/22/2026,"ALDI","-64.15"');
+  const f = sniffFormat(rows);
+  assert.equal(f.dateFormatConfidence, 'low');
+});
+
+test('parseAmount rejects European decimal-comma and space-grouped forms instead of misparsing them', () => {
+  assert.equal(parseAmount('1.404,01'), null);
+  assert.equal(parseAmount('1 404,01'), null);
+  assert.equal(parseAmount('$1,404.01'), 1404.01);
+});
