@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../server/index.js';
@@ -125,14 +125,14 @@ test('applyToPast does not touch a different merchant\'s transactions', async ()
   await withImported(async (base, store) => {
     const ledgerBefore = await store.read('ledger');
     const coles = ledgerBefore.filter((t) => t.merchant === 'Coles');
-    const myki = ledgerBefore.find((t) => t.merchant !== 'Coles' && t.merchant !== coles[0]?.merchant);
-    assert.ok(myki, 'expected a transaction from a merchant other than Coles');
-    const mykiCategoryBefore = myki.categoryId;
+    const otherMerchant = ledgerBefore.find((t) => t.merchant !== 'Coles' && t.merchant !== coles[0]?.merchant);
+    assert.ok(otherMerchant, 'expected a transaction from a merchant other than Coles');
+    const otherCategoryBefore = otherMerchant.categoryId;
 
     await patch(base, coles[0].id, { categoryId: 'alcohol', applyToPast: true });
 
-    const after = (await store.read('ledger')).find((t) => t.id === myki.id);
-    assert.equal(after.categoryId, mykiCategoryBefore, 'a different merchant must be untouched by applyToPast');
+    const after = (await store.read('ledger')).find((t) => t.id === otherMerchant.id);
+    assert.equal(after.categoryId, otherCategoryBefore, 'a different merchant must be untouched by applyToPast');
     assert.notEqual(after.categorySource, 'manual');
   });
 });
@@ -226,5 +226,101 @@ test('a PATCH concurrent with an import commit loses neither update', async () =
     const patchedRow = after.find((t) => t.id === rong.id);
     assert.equal(patchedRow.categoryId, 'restaurants', 'the concurrent PATCH must not be lost');
     assert.ok(after.some((t) => t.merchant === 'Aldi Stores'), 'expected the newly imported Aldi row to be present');
+  });
+});
+
+// --- Fix-round tests: 'Unknown' pseudo-merchant, backup discipline, malformed JSON ---
+
+test('applyToPast and rememberRule never group by the "Unknown" pseudo-merchant', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'spendexplore-txn-'));
+  const app = await startServer({ port: 0, dataDir: dir });
+  const base = `http://127.0.0.1:${app.port}`;
+  try {
+    // Two raw descriptions that normalise to nothing but location/noise
+    // tokens both collapse to the literal merchant name 'Unknown' — despite
+    // describing two completely unrelated transactions.
+    const rows = [
+      '10/08/2026,"VIC AU","acct","cat","-12.00"',
+      '11/08/2026,"NSW AU","acct","cat","-18.00"'
+    ].join('\n');
+    await fetch(`${base}/api/import/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ files: [{ filename: 'unknown.csv', text: rows }] })
+    });
+    const ledger = await app.store.read('ledger');
+    assert.equal(ledger.length, 2);
+    assert.ok(ledger.every((t) => t.merchant === 'Unknown'));
+    const [a, b] = ledger;
+
+    const applyBody = await (await patch(base, a.id, {
+      categoryId: 'shopping', applyToPast: true
+    })).json();
+    // The single-row edit itself must still work normally.
+    assert.equal(applyBody.transaction.categoryId, 'shopping');
+    assert.equal(applyBody.transaction.categorySource, 'manual');
+    assert.equal(applyBody.updatedPast, 0, 'applyToPast must not group by the Unknown pseudo-merchant');
+
+    const afterApply = await app.store.read('ledger');
+    const other = afterApply.find((t) => t.id === b.id);
+    assert.notEqual(other.categoryId, 'shopping', 'a different unidentifiable transaction must be untouched');
+    assert.notEqual(other.categorySource, 'manual');
+
+    const rememberBody = await (await patch(base, a.id, {
+      categoryId: 'shopping', rememberRule: true
+    })).json();
+    assert.equal(rememberBody.ruleAdded, false, 'rememberRule must not write a rule keyed on "unknown"');
+    const rules = await app.store.read('rules');
+    assert.ok(!rules.some((r) => r.match === 'exact' && r.value === 'unknown'));
+  } finally {
+    await app.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a no-op PATCH touches no disk: no backup, no ledger rewrite', async () => {
+  await withImported(async (base, store) => {
+    // withImported already committed one file, which itself backs up
+    // unconditionally, so 'backups' already exists here — the assertion is
+    // that a no-op PATCH adds no NEW backup, not that none exists at all.
+    const backupsBefore = await readdir(join(store.dataDir, 'backups'));
+    const t = (await store.read('ledger'))[0];
+    const res = await patch(base, t.id, {});
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(body.transaction, t);
+    assert.equal(body.updatedPast, 0);
+    assert.equal(body.ruleAdded, false);
+    const backupsAfter = await readdir(join(store.dataDir, 'backups'));
+    assert.equal(backupsAfter.length, backupsBefore.length, 'a no-op PATCH must not create a backup');
+  });
+});
+
+test('a single-row edit takes no backup; a bulk applyToPast does', async () => {
+  await withImported(async (base, store) => {
+    const backupsAfterImport = (await readdir(join(store.dataDir, 'backups'))).length;
+
+    const rong = (await store.read('ledger')).find((t) => t.merchant === 'Sunshine Deli');
+    await patch(base, rong.id, { categoryId: 'restaurants' });
+    const backupsAfterSingleEdit = (await readdir(join(store.dataDir, 'backups'))).length;
+    assert.equal(backupsAfterSingleEdit, backupsAfterImport, 'a single-row edit should not create a backup');
+
+    const coles = (await store.read('ledger')).filter((t) => t.merchant === 'Coles');
+    await patch(base, coles[0].id, { categoryId: 'alcohol', applyToPast: true });
+    const backupsAfterBulk = (await readdir(join(store.dataDir, 'backups'))).length;
+    assert.ok(backupsAfterBulk > backupsAfterSingleEdit, 'a bulk applyToPast should back up before rewriting the ledger');
+  });
+});
+
+test('a syntactically invalid JSON body on PATCH is a clean 400, not a 500', async () => {
+  await withImported(async (base, store) => {
+    const t = (await store.read('ledger'))[0];
+    const res = await fetch(`${base}/api/transactions/${t.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: '{ this is not json'
+    });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /json/i);
   });
 });

@@ -74,19 +74,41 @@ export function createTransactionRoutes(store, serialized) {
       }
     }
 
+    // A PATCH with none of the editable fields set is a genuine no-op:
+    // there is nothing to write, so nothing should touch disk at all — no
+    // backup, no ledger rewrite. (applyToPast/rememberRule alone, without
+    // categoryId, are also no-ops further down, but categoryId/excluded/
+    // note are the only fields that can change the stored row itself.)
+    const hasEdit = body.categoryId !== undefined || body.excluded !== undefined || body.note !== undefined;
+    if (!hasEdit) {
+      return sendJson(res, 200, { transaction: ledger[index], updatedPast: 0, ruleAdded: false });
+    }
+
     const updated = { ...ledger[index] };
     if (body.categoryId !== undefined) {
       updated.categoryId = body.categoryId;
       updated.categorySource = 'manual';
     }
-    if (body.excluded !== undefined) updated.excluded = Boolean(body.excluded);
+    if (body.excluded !== undefined) updated.excluded = body.excluded;
     if (body.note !== undefined) updated.note = body.note === '' ? null : body.note;
 
     const next = [...ledger];
     next[index] = updated;
 
+    // 'Unknown' is not a real merchant identity: lib/merchant-normalise.js
+    // returns that literal string for every raw description it fails to
+    // extract a name from, so completely unrelated transactions — different
+    // payees, different amounts — all end up sharing merchant === 'Unknown'.
+    // Grouping by it would let applyToPast silently recategorise every
+    // unidentifiable row in the ledger in one request, and rememberRule
+    // would write a rule that auto-categorises every future unidentifiable
+    // transaction the same way — both are exactly the silent history
+    // rewrite the spec forbids. The single-row edit above still applies
+    // normally either way; only the two grouping behaviours are disabled.
+    const canGroup = Boolean(updated.merchant) && updated.merchant !== 'Unknown';
+
     let updatedPast = 0;
-    if (body.applyToPast === true && body.categoryId !== undefined) {
+    if (body.applyToPast === true && body.categoryId !== undefined && canGroup) {
       const merchant = updated.merchant;
       for (let i = 0; i < next.length; i++) {
         if (i === index) continue;
@@ -100,16 +122,24 @@ export function createTransactionRoutes(store, serialized) {
       }
     }
 
-    // Back up before rewriting the ledger, same discipline as the import
-    // path: applyToPast can rewrite every past row for a merchant in one
-    // request, which is exactly the kind of bulk rewrite of saved history
-    // a backup exists to make recoverable.
-    await store.backup();
+    // Only a bulk rewrite is destructive enough to warrant a full-ledger
+    // backup. A single-row edit is trivially undoable by editing it back,
+    // and category correction is the most repeated action in the app —
+    // backing up on every one of a few hundred single-row edits in a
+    // normal session would litter data/backups/ with full ledger copies
+    // for no reason. A bulk applyToPast, which can rewrite many rows at
+    // once, keeps the same backup-before-write discipline as import commit.
+    if (updatedPast > 0) await store.backup();
     await store.write('ledger', next);
 
     let ruleAdded = false;
-    if (body.rememberRule === true && body.categoryId !== undefined) {
-      const value = String(updated.merchant).toLowerCase();
+    if (body.rememberRule === true && body.categoryId !== undefined && canGroup) {
+      // .trim() matches what lib/categorise.js's matchRule() does to the
+      // subject it tests rules against — merchant is already trimmed by
+      // normaliseMerchant() in practice, so this is currently a no-op, but
+      // leaving the two out of step would be a latent mismatch waiting to
+      // bite whenever that assumption stops holding.
+      const value = String(updated.merchant).toLowerCase().trim();
       const rules = await store.read('rules');
       // Replace any existing exact rule for this merchant rather than
       // accumulating duplicates — re-correcting the same merchant should
@@ -144,6 +174,11 @@ export function createTransactionRoutes(store, serialized) {
       ...data,
       categories: [...data.categories, { id: body.id, label: body.label, groupId: body.groupId }]
     };
+    // Category creation is infrequent (unlike a PATCH, which happens
+    // constantly during a review session), so an unconditional backup here
+    // costs nothing and keeps the same discipline as every other endpoint
+    // that mutates saved data.
+    await store.backup();
     await store.write('categories', next);
     return sendJson(res, 200, { categories: next.categories });
   }

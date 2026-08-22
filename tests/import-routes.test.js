@@ -320,3 +320,15 @@ test('DELETE on the literal /api/import/preview or /api/import/commit path is a 
     }
   });
 });
+
+test('a syntactically invalid JSON body on commit is a clean 400, not a 500', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/import/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{ this is not json'
+    });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /json/i);
+  });
+});

@@ -43,7 +43,7 @@ export const readBody = (req) => new Promise((resolve, reject) => {
   req.on('end', () => {
     const text = Buffer.concat(chunks).toString('utf8');
     if (text === '') return resolve({});
-    try { resolve(JSON.parse(text)); } catch { reject(new Error('Request body is not valid JSON')); }
+    try { resolve(JSON.parse(text)); } catch { reject(new UserFacingError('Request body is not valid JSON', 400)); }
   });
   req.on('error', reject);
 });

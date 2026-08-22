@@ -1,9 +1,16 @@
 # Changelog
 
+### [2026-08-23 06:10] Fixed
+
+**Tech:** `server/routes/transactions.js` — `applyToPast`/`rememberRule` skip merchant `'Unknown'`, no-op PATCH skips the write, backup only fires when `updatedPast > 0`, `POST /api/categories` now backs up; `server/http.js` — invalid JSON body is now a `UserFacingError(400)`; `tests/transaction-routes.test.js` — 4 new tests, `tests/import-routes.test.js` — 1 new test
+**Dev:** Grouping by `merchant === 'Unknown'` could recategorise every unidentifiable transaction in one request — fixed by treating it as ungroupable. Every PATCH backed up and rewrote the ledger unconditionally, even a no-op; now only a real edit writes, and only a bulk apply backs up. A malformed JSON body was masked as a 500 everywhere; it's now a clean 400, matching every other rejected input.
+**Plain:** Fixed two edge cases: unidentifiable transactions could get bulk-recategorised together by mistake, and the app was silently saving far more backup copies than it needed to while you corrected categories.
+**Why:** Correcting one unreadable transaction should never touch a different one just because the bank couldn't name either of them, and saving your data shouldn't get slower the more you use the app.
+
 ### [2026-08-23 05:45] Added
 
 **Tech:** `server/routes/transactions.js` — `createTransactionRoutes(store, serialized)`: `PATCH /api/transactions/:id`, `POST /api/categories`; new `server/mutation-gate.js` shared by `routes/import.js` and `routes/transactions.js`; `tests/transaction-routes.test.js` — 14 tests
-**Dev:** Editing a category marks `categorySource: "manual"`; `applyToPast` and `rememberRule` both default off and skip rows already marked manual. Fixed a real gap in the brief's reference: it never backed up before rewriting the ledger, unlike the import path, so I added `store.backup()` before the write. The import commit's concurrency gate was local to that file, but PATCH shares the same ledger read-modify-write hazard, so it's now `mutation-gate.js`, created once in `routes.js` and passed to both route modules.
+**Dev:** Editing a category marks `categorySource: "manual"`. `applyToPast` and `rememberRule` both default off and skip rows already marked manual. A shared `mutation-gate.js` now queues PATCH behind the same gate as import commit, so neither can lose the other's write.
 **Plain:** Added the endpoints that let you fix a transaction's category, optionally apply that fix to past transactions, and optionally teach the app to categorise that merchant automatically next time.
 **Why:** Correcting a category should never silently rewrite old totals or duplicate a rule, and editing a transaction while a statement is mid-import should never lose either change.
 
