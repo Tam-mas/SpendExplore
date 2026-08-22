@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 18:25] Added
+
+**Tech:** `lib/merchant-normalise.js` — `normaliseMerchant(rawDescription)`, `extractCardSuffix(rawDescription)`
+**Dev:** Reduces a raw bank description to a stable merchant name through layered regex stripping (settlement dates, `Card xx####` identifiers, `Direct Debit`/`Wdl`/`Dep` prefixes, payment-gateway prefixes like `SQ*`/`SMP*`/`LSP*`, biller reference codes, uppercase alphanumeric terminal codes such as `WK2PZP`, and company suffixes like `PTY LTD`), then trims a fixed `TRAILING_NOISE` set of country/state/suburb tokens and bare store numbers token-by-token from the END of the string only — never from the middle or start — so a merchant genuinely named after a place (tested with a hypothetical "Coburg Bakery") is not mistaken for location noise. Repeated tokens within one description (`ATM NAB NAB ATM`) collapse to the first occurrence, and the result is capped at three tokens and title-cased before returning; an all-noise or blank input returns the literal string `Unknown` rather than an empty string. `extractCardSuffix` is a separate, single-purpose regex pull of the last four card digits, returning `null` when no card token is present. All 18 real-world CommBank description cases from the brief passed against the reference implementation unmodified — no fixes to `TRAILING_NOISE` or the token rules were needed this round.
+**Plain:** Added the code that turns messy bank statement text like "COLES 0592 COBURG VI AUS Card xx4321 Value Date: 14/08/2026" into a clean merchant name like "Coles".
+**Why:** Every other feature — spotting where money goes, matching refunds, learning the couple's own categorisation rules — depends on six different-looking descriptions for the same shop collapsing into one merchant name instead of showing up as six separate, confusing entries.
+
 ### [2026-08-22 18:10] Fixed
 
 **Tech:** `lib/format-sniff.js` — `findBalancePair()` (new), `sniffFormat()`'s header/amount/description/account selection, `detectDateFormat()`, `parseAmount()`
