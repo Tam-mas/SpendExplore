@@ -223,7 +223,7 @@ export function parseCsv(text) {
     if (ch === '\r') continue;
     if (ch === '\n') {
       row.push(field);
-      if (seenAnyChar || row.some((f) => f !== '')) rows.push(row);
+      if (seenAnyChar) rows.push(row);
       row = []; field = ''; seenAnyChar = false;
       continue;
     }
@@ -232,7 +232,7 @@ export function parseCsv(text) {
   }
 
   row.push(field);
-  if (seenAnyChar || row.some((f) => f !== '')) rows.push(row);
+  if (seenAnyChar) rows.push(row);
   return rows;
 }
 ```
