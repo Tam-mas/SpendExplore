@@ -2,6 +2,7 @@ import { readFile, writeFile, rename, mkdir, copyFile, access } from 'node:fs/pr
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { UserFacingError } from './errors.js';
 
 const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'seed');
 
@@ -41,7 +42,9 @@ export function createStore(dataDir) {
     try {
       return JSON.parse(text);
     } catch {
-      throw new Error(
+      // Safe to show the user verbatim: names only the collection file and
+      // tells them where to find a backup, no filesystem internals.
+      throw new UserFacingError(
         `${COLLECTIONS[name].file} is not valid JSON. ` +
         `Restore it from data/backups/ before starting again.`
       );

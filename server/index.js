@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createStore } from './store.js';
 import { createRouter, serveStatic, sendJson } from './routes.js';
+import { UserFacingError } from './errors.js';
 
 const HOST = '127.0.0.1';   // loopback only, never 0.0.0.0
 
@@ -17,7 +18,13 @@ export function createApp(store) {
       if (pathname.startsWith('/api/')) return await route(req, res, pathname);
       return await serveStatic(req, res, pathname);
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      // UserFacingError messages are written to be shown as-is. Anything
+      // else is unexpected and may embed filesystem internals (Node's fs
+      // and JSON.parse errors routinely include absolute paths), so it is
+      // logged server-side for debugging but never sent to the client.
+      if (err instanceof UserFacingError) return sendJson(res, err.status, { error: err.message });
+      console.error(err);
+      sendJson(res, 500, { error: 'Internal server error' });
     }
   };
 }

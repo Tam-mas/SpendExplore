@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
-import { startServer } from '../server/index.js';
+import { createServer } from 'node:http';
+import { startServer, createApp } from '../server/index.js';
 import { readBody } from '../server/routes.js';
+import { UserFacingError } from '../server/errors.js';
 
 const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -15,6 +17,16 @@ const withServer = async (fn) => {
   const app = await startServer({ port: 0, dataDir: dir });
   try { await fn(`http://127.0.0.1:${app.port}`, dir, app); }
   finally { await app.close(); await rm(dir, { recursive: true, force: true }); }
+};
+
+// Runs createApp(fakeStore) on a raw http server, bypassing startServer's
+// real store/dataDir — for tests that need to control exactly what a route
+// handler throws, without corrupting real files on disk to provoke it.
+const withStubStore = async (fakeStore, fn) => {
+  const server = createServer(createApp(fakeStore));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try { await fn(`http://127.0.0.1:${server.address().port}`); }
+  finally { await new Promise((resolve) => server.close(resolve)); }
 };
 
 test('binds to loopback only', async () => {
@@ -57,6 +69,12 @@ test('serves the web UI at /', async () => {
 
 test('refuses path traversal in static paths', async () => {
   await withServer(async (base) => {
+    // A raw ".." at the URL root is stripped by new URL()'s own dot-segment
+    // normalisation before this ever reaches our code, so this particular
+    // request is refused only because /server/store.js doesn't exist under
+    // web/ (ordinary 404) — it does not exercise the boundary check itself.
+    // See "refuses several encodings of path traversal" below for the
+    // encodings that actually reach the boundary check.
     const res = await fetch(`${base}/../server/store.js`, { redirect: 'manual' });
     assert.ok([400, 404].includes(res.status), `unexpected status ${res.status}`);
   });
@@ -67,10 +85,21 @@ test('refuses path traversal in static paths', async () => {
 test('refuses several encodings of path traversal, and never leaks file content', async () => {
   await withServer(async (base) => {
     const attempts = [
+      // Raw "..": stripped by URL parsing before it reaches us; refused as
+      // an ordinary 404, not by the boundary check. Kept as documentation
+      // of that normalisation path, not as boundary-check coverage.
       '/../server/store.js',
+      // %2f is not treated as a path separator during URL parsing, so this
+      // survives intact and only becomes "../server/store.js" after our own
+      // decodeURIComponent — this is what actually reaches the boundary
+      // check in serveStatic.
       '/..%2fserver/store.js',
-      '/%2e%2e/server/store.js',
       '/..%2f..%2fserver/store.js',
+      // Fully percent-encoded (dots and slash both escaped) so the "%2e%2e"
+      // segment is never adjacent to a raw "/", which is what stops the URL
+      // parser's dot-segment collapsing from firing early the way it did
+      // for the "%2e%2e/..." form.
+      '/%2e%2e%2fserver%2fstore.js',
     ];
     for (const path of attempts) {
       const res = await fetch(`${base}${path}`, { redirect: 'manual' });
@@ -96,27 +125,42 @@ test('a sibling directory sharing the "web" prefix cannot be escaped into', asyn
   // like target.startsWith(WEB_DIR) is fooled by a sibling directory whose
   // name happens to start with the same characters, e.g. "web-evil" starts
   // with "web". Create such a sibling next to the real web/ dir and confirm
-  // it is refused, not served.
+  // several encodings are all refused, not served.
   const evilDir = join(PROJECT_ROOT, 'web-evil');
   await mkdir(evilDir, { recursive: true });
   await writeFile(join(evilDir, 'secret.txt'), 'TOP SECRET SIBLING CONTENT');
   try {
     await withServer(async (base) => {
-      // A raw ".." in the request line gets eaten by the WHATWG URL
-      // parser's own dot-segment normalisation before it ever reaches our
-      // code (there's nothing to go "up" from at the root), so it never
-      // actually exercises the boundary check. %2f survives that parse
-      // step untouched — it only becomes ".." after *our* decode — so this
-      // is the encoding that actually reaches serveStatic's boundary logic
-      // with a literal "../web-evil/secret.txt".
-      const res = await fetch(`${base}/..%2fweb-evil/secret.txt`, { redirect: 'manual' });
-      assert.ok([400, 404].includes(res.status), `unexpected status ${res.status}`);
-      const text = await res.text();
-      assert.doesNotMatch(text, /TOP SECRET SIBLING CONTENT/);
+      const attempts = [
+        // Raw "..": normalised away by URL parsing at the root, so this
+        // resolves to /web-evil/secret.txt (looked up *under* web/, where
+        // it doesn't exist) — an ordinary 404, not boundary-check coverage.
+        '/../web-evil/secret.txt',
+        // %2f survives URL parsing intact; after our decode this is a
+        // genuine "../web-evil/secret.txt" that reaches the boundary check.
+        '/..%2fweb-evil/secret.txt',
+        '/..%2f..%2fweb-evil/secret.txt',
+        '/%2e%2e%2fweb-evil%2fsecret.txt',
+      ];
+      for (const path of attempts) {
+        const res = await fetch(`${base}${path}`, { redirect: 'manual' });
+        assert.ok([400, 404].includes(res.status), `${path} => unexpected status ${res.status}`);
+        const text = await res.text();
+        assert.doesNotMatch(text, /TOP SECRET SIBLING CONTENT/, `${path} leaked the sibling file`);
+      }
     });
   } finally {
     await rm(evilDir, { recursive: true, force: true });
   }
+});
+
+test('a "dot dot slash slash" bypass attempt does not escape web/', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/....//server/store.js`, { redirect: 'manual' });
+    assert.ok([400, 404].includes(res.status), `unexpected status ${res.status}`);
+    const text = await res.text();
+    assert.doesNotMatch(text, /createStore/);
+  });
 });
 
 test('readBody rejects a body over the size cap instead of buffering it', async () => {
@@ -148,5 +192,59 @@ test('server only binds the loopback address, never all interfaces', async () =>
     const address = app.server.address();
     assert.equal(address.address, '127.0.0.1');
     assert.notEqual(address.address, '0.0.0.0');
+  });
+});
+
+// --- Error-handling: UserFacingError vs. unexpected errors (review fix) ---
+
+test('a UserFacingError message reaches the client verbatim', async () => {
+  const message = 'ledger.json is not valid JSON. Restore it from data/backups/ before starting again.';
+  const fakeStore = {
+    read: async () => { throw new UserFacingError(message); },
+  };
+  await withStubStore(fakeStore, async (base) => {
+    const res = await fetch(`${base}/api/snapshot`);
+    const body = await res.json();
+    assert.equal(res.status, 500);
+    assert.equal(body.error, message);
+  });
+});
+
+test('an unexpected error is masked to a generic message and does not leak filesystem paths', async () => {
+  const absolutePath = '/Users/tam/Documents/SpendExplore/data/ledger.json';
+  const fakeStore = {
+    read: async () => { throw new Error(`ENOENT: no such file or directory, open '${absolutePath}'`); },
+  };
+  const originalConsoleError = console.error;
+  let logged;
+  console.error = (err) => { logged = err; };
+  try {
+    await withStubStore(fakeStore, async (base) => {
+      const res = await fetch(`${base}/api/snapshot`);
+      const body = await res.json();
+      assert.equal(res.status, 500);
+      assert.equal(body.error, 'Internal server error');
+      assert.ok(!JSON.stringify(body).includes(absolutePath), 'response body leaked the absolute path');
+      assert.ok(!JSON.stringify(body).includes('/Users/'), 'response body leaked a filesystem path');
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+  // The real error must still reach server-side logs, or debugging an
+  // unexpected failure would be impossible with the client-facing message
+  // reduced to "Internal server error".
+  assert.ok(logged instanceof Error);
+  assert.match(logged.message, /ENOENT/);
+  assert.match(logged.message, /ledger\.json/);
+});
+
+test('a corrupt data file surfaces its UserFacingError through the real snapshot endpoint', async () => {
+  await withServer(async (base, dir) => {
+    await writeFile(join(dir, 'ledger.json'), '{ not json');
+    const res = await fetch(`${base}/api/snapshot`);
+    const body = await res.json();
+    assert.equal(res.status, 500);
+    assert.match(body.error, /ledger\.json is not valid JSON/);
+    assert.match(body.error, /Restore it from data\/backups/);
   });
 });

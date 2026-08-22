@@ -53,6 +53,11 @@ export async function serveStatic(req, res, pathname) {
   if (target !== WEB_DIR && !target.startsWith(WEB_DIR + sep)) {
     return sendJson(res, 400, { error: 'Bad path' });
   }
+  // Known limitation: this checks the requested path lexically, not the
+  // resolved filesystem target — symlinks under web/ are not followed via
+  // realpath, so a symlink planted inside web/ pointing outside it would
+  // not be caught here. Not exploitable today (nothing writes into web/
+  // at runtime), but worth knowing if that ever changes.
 
   try {
     const body = await readFile(target);
