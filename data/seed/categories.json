@@ -1,0 +1,48 @@
+{
+  "groups": [
+    { "id": "food-drink", "label": "Food & Drink" },
+    { "id": "transport",  "label": "Transport" },
+    { "id": "home",       "label": "Home" },
+    { "id": "health",     "label": "Health" },
+    { "id": "lifestyle",  "label": "Lifestyle" },
+    { "id": "money",      "label": "Money" },
+    { "id": "other",      "label": "Other" }
+  ],
+  "categories": [
+    { "id": "groceries",         "label": "Groceries",             "groupId": "food-drink" },
+    { "id": "restaurants",       "label": "Restaurants",           "groupId": "food-drink" },
+    { "id": "takeaway",          "label": "Takeaway",              "groupId": "food-drink" },
+    { "id": "coffee",            "label": "Coffee",                "groupId": "food-drink" },
+    { "id": "alcohol",           "label": "Alcohol",               "groupId": "food-drink" },
+
+    { "id": "public-transport",  "label": "Public transport",      "groupId": "transport" },
+    { "id": "fuel",              "label": "Fuel",                  "groupId": "transport" },
+    { "id": "tolls-parking",     "label": "Tolls & parking",       "groupId": "transport" },
+    { "id": "rideshare-taxi",    "label": "Rideshare & taxi",      "groupId": "transport" },
+    { "id": "car-servicing",     "label": "Car servicing",         "groupId": "transport" },
+
+    { "id": "rent-mortgage",     "label": "Rent/mortgage",         "groupId": "home" },
+    { "id": "energy",            "label": "Energy",                "groupId": "home" },
+    { "id": "water",             "label": "Water",                 "groupId": "home" },
+    { "id": "internet-phone",    "label": "Internet & phone",      "groupId": "home" },
+    { "id": "furniture-reno",    "label": "Furniture & renovation","groupId": "home" },
+
+    { "id": "pharmacy",          "label": "Pharmacy",              "groupId": "health" },
+    { "id": "doctors",           "label": "Doctors & specialists", "groupId": "health" },
+    { "id": "fitness",           "label": "Fitness",               "groupId": "health" },
+    { "id": "insurance",         "label": "Insurance",             "groupId": "health" },
+
+    { "id": "shopping",          "label": "Shopping",              "groupId": "lifestyle" },
+    { "id": "entertainment",     "label": "Entertainment",         "groupId": "lifestyle" },
+    { "id": "subscriptions",     "label": "Subscriptions",         "groupId": "lifestyle" },
+    { "id": "travel",            "label": "Travel & holidays",     "groupId": "lifestyle" },
+    { "id": "gifts",             "label": "Gifts",                 "groupId": "lifestyle" },
+
+    { "id": "cash",              "label": "Cash withdrawals",      "groupId": "money" },
+    { "id": "fees-interest",     "label": "Fees & interest",       "groupId": "money" },
+    { "id": "transfers",         "label": "Transfers",             "groupId": "money" },
+
+    { "id": "uncategorised",     "label": "Uncategorised",         "groupId": "other" },
+    { "id": "income",            "label": "Income",                "groupId": "other" }
+  ]
+}
