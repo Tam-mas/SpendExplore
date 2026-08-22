@@ -49,3 +49,43 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .group-row td { font-weight: 600; }
 .cat-row td:first-child { padding-left: 28px; color: var(--muted); }
 .empty { color: var(--muted); padding: 32px 0; text-align: center; }
+
+/* ---- charts ---- */
+:root {
+  --viz-surface: #fcfcfb;
+  --viz-text-primary: #0b0b0b;
+  --viz-text-secondary: #52514e;
+  --viz-grid: #e3e5e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --viz-surface: #1a1a19;
+    --viz-text-primary: #ffffff;
+    --viz-text-secondary: #c3c2b7;
+    --viz-grid: #2c2f34;
+  }
+}
+.viz-panel { border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 20px; background: var(--viz-surface); }
+.viz-panel-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+.viz-panel-head h3 { margin: 0; font-size: 15px; }
+.viz-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+.viz-control { display: flex; align-items: center; gap: 5px; }
+.viz-control-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--viz-text-secondary); }
+.viz-control select { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.viz-note { font-size: 12px; color: var(--viz-text-secondary); margin: 8px 0 12px; }
+.viz-plot { overflow-x: auto; }
+.viz-label { font-size: 12px; fill: var(--viz-text-secondary); }
+.viz-value { font-size: 12px; fill: var(--viz-text-primary); font-variant-numeric: tabular-nums; }
+.viz-total { font-size: 17px; fill: var(--viz-text-primary); font-weight: 600; }
+.viz-tile-label { font-size: 12px; fill: #ffffff; font-weight: 600; }
+.viz-tile-value { font-size: 11px; fill: #ffffff; }
+.viz-grid { stroke: var(--viz-grid); stroke-width: 1; }
+.viz-empty { color: var(--viz-text-secondary); padding: 24px 0; text-align: center; }
+.viz-legend { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; }
+.viz-legend li { display: flex; align-items: center; gap: 6px; }
+.viz-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.viz-donut { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.viz-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.viz-table th, .viz-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.viz-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.viz-caption { text-align: left; font-weight: 600; padding-bottom: 8px; }

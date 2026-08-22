@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 10:15] Added
+
+**Tech:** `web/panel.js` — `createPanel()`, `colourResolver()`, `mount()`; appended to `web/style.css`
+
+**Dev:** A panel is pure config (id, title, sliceBy, measure, chartType, filters). `html()` renders markup from a snapshot and returns pure string; `mount()` attaches DOM listeners. Chart type auto-repairs when slice or measure changes, preserving valid types. Colour keyed by entity identity, not rank, so filtering never repaints survivors.
+
+**Plain:** Added the configurable dashboard panel with slice, measure, chart-type controls and auto-repair when config becomes invalid.
+
+**Why:** This is the last bridge between UI state (what's selected) and data results (what's drawn). Pure config goes in, markup comes out, no transactions touched except the scatter plot which receives bare amounts. Entity-keyed colour means filtering stays stable, and auto-repair means users never see an error state.
+
 ### [2026-08-23 09:43] Added
 
 **Tech:** `web/charts/index.js` — `CHART_TYPES`, `chartsFor()`, `renderChart()`, `defaultChartFor()`
