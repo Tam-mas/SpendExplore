@@ -68,3 +68,60 @@ test('extractCardSuffix returns null for an empty or whitespace-only string', ()
   assert.equal(extractCardSuffix(''), null);
   assert.equal(extractCardSuffix('   '), null);
 });
+
+// --- Fix wave: four defects found in the reference implementation, ratified
+// for fixing even though they touch the plan's own reference code. ---
+
+// Fix 1, half A: a brand name that looks like a reference code (all-caps
+// alphanumeric, 5+ chars, digit + letter) must survive when it LEADS the
+// description — reference codes only ever trail the merchant name.
+test('a leading digit+letter brand name is not mistaken for a reference code', () => {
+  assert.equal(normaliseMerchant('7ELEVEN COBURG VI AUS Card xx4321'), '7ELEVEN');
+  assert.equal(normaliseMerchant('13CABS Melbourne VI AUS Card xx4321'), '13CABS');
+});
+
+// Fix 1, half B: a genuine trailing reference code appended by the payment
+// terminal is still stripped. Pinned separately from half A so a future
+// simplification (e.g. reverting to a blind whole-string regex) can't
+// satisfy one half while silently breaking the other.
+test('a genuine trailing reference code is still stripped', () => {
+  assert.equal(
+    normaliseMerchant('Google CLOUD WK2PZP Sydney AU AUS Card xx4321 Value Date: 02/08/2026'),
+    'Google Cloud'
+  );
+  assert.equal(
+    normaliseMerchant('SMP*DAT THANH BAKERY  0      COBURG03 AU'),
+    'Dat Thanh Bakery'
+  );
+});
+
+// Fix 2: the token cap was raised from 3 to 4 so long legitimate names keep
+// their most identifying word instead of being truncated away.
+test('the token cap keeps a 4-word merchant name intact', () => {
+  assert.equal(
+    normaliseMerchant('THE ROYAL MELBOURNE HOTEL Melbourne VI AUS'),
+    'The Royal Melbourne Hotel'
+  );
+});
+
+// Fix 3: de-duplication only applies when at least 2 tokens survive it, so
+// an intentionally repeated brand name isn't collapsed to a single word.
+test('an intentionally repeated brand name is not collapsed by de-duplication', () => {
+  assert.equal(normaliseMerchant('BAR BAR Melbourne VI AUS'), 'Bar Bar');
+});
+
+// Fix 4: normaliseMerchant must be idempotent — re-running it on its own
+// output must not change the result. This specific case failed pre-fix
+// because raising tokens to fill the cap exposed a TRAILING_NOISE word
+// ("Melbourne") at the new end, which only got trimmed on the second pass.
+test('normaliseMerchant is idempotent for a case where capping used to expose trailing noise', () => {
+  const once = normaliseMerchant('THE ROYAL MELBOURNE HOTEL Melbourne VI AUS');
+  assert.equal(normaliseMerchant(once), once);
+});
+
+test('normaliseMerchant is idempotent for all 18 mandated raw descriptions', () => {
+  for (const [raw] of CASES) {
+    const once = normaliseMerchant(raw);
+    assert.equal(normaliseMerchant(once), once, `not idempotent for: ${raw}`);
+  }
+});
