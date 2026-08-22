@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 02:40] Added
+
+**Tech:** `server/index.js` — `createApp(store)`, `startServer({ port, dataDir })`; `server/routes.js` — `createRouter(store)`, `serveStatic`, `sendJson`, `readBody`; `web/index.html` placeholder; `tests/routes.test.js`
+**Dev:** Thin `node:http` shell binding to `127.0.0.1` only, with `GET /api/snapshot` returning all six collections from the store and static files served from `web/`. Fixed a real bug in the brief's reference `serveStatic`: it guarded traversal with `target.startsWith(WEB_DIR)`, a raw string-prefix check that a sibling directory sharing the same leading characters (e.g. `web-evil`) sails straight through — confirmed by temporarily reverting to the naive check, which let a request for `/../web-evil/secret.txt` return the sibling file's content with a 200. Replaced it with `target === WEB_DIR || target.startsWith(WEB_DIR + sep)`. Added 6 tests beyond the brief's 5: several traversal encodings asserting no file content leaks, a null-byte path, the sibling-directory regression (using `%2f`-encoded traversal, since a raw `..` at the URL root gets silently stripped by `new URL()`'s own dot-segment normalisation before it ever reaches the boundary check), `readBody`'s size cap rejecting an oversized body without buffering it, an explicit JSON-not-HTML content-type check on an unknown route, and confirming `server.address().address` is `127.0.0.1`.
+**Plain:** Added the local web server that the app runs on, always bound to your own machine only, plus the first API endpoint that hands the app all its saved data at once.
+**Why:** This server holds someone's full bank transaction history behind no login, so getting the "which requests are allowed to read a file" logic right matters more than almost anything else in the project — found and closed a real hole where a cleverly named sibling folder could have bypassed the traversal guard before any real UI was built on top of it.
+
 ### [2026-08-23 02:05] Fixed
 
 **Tech:** `server/store.js` — unique-per-call temp filenames (`node:crypto` `randomUUID()`) plus a per-collection promise-chain write queue in `write()`; `backup()` rewritten to use non-recursive `mkdir` + `EEXIST` retry instead of `access()`-then-`mkdir`; `pathFor()` now guards with `Object.hasOwn(COLLECTIONS, name)` instead of a truthiness check; `tests/store.test.js` — 3 new tests
