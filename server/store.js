@@ -2,7 +2,7 @@ import { readFile, writeFile, rename, mkdir, copyFile, access } from 'node:fs/pr
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { UserFacingError } from './errors.js';
+import { UserFacingError } from './http.js';
 
 const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'seed');
 

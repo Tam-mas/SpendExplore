@@ -257,3 +257,66 @@ test('malformed request bodies each get a clean 400, never a 500', async () => {
     }
   });
 });
+
+// --- Review round: concurrency and zero-row-rollback fixes ---
+
+test('two concurrent commits of different files both land: no import is silently lost', async () => {
+  await withServer(async (base, store) => {
+    const [resA, resB] = await Promise.all([
+      post(base, '/api/import/commit', { files }),
+      post(base, '/api/import/commit', {
+        files: [{ filename: 'b.csv', text: '01/08/2026,"ALDI STORES PRESTON VICAU","acct","cat","-44.43"' }]
+      })
+    ]);
+    assert.equal(resA.status, 200);
+    assert.equal(resB.status, 200);
+    const [bodyA, bodyB] = await Promise.all([resA.json(), resB.json()]);
+
+    // Without serialising the mutating handlers, the second write-back to
+    // the ledger clobbers the first: both requests return 200 with real
+    // importIds, but only one commit's rows actually land on disk.
+    const ledger = await store.read('ledger');
+    assert.equal(ledger.length, 7, 'expected rows from BOTH concurrent commits, not just whichever wrote last');
+
+    const log = await store.read('imports');
+    assert.equal(log.length, 2, 'expected a log entry for each concurrent commit');
+
+    const importIdA = bodyA.results[0].importId;
+    const importIdB = bodyB.results[0].importId;
+    assert.notEqual(importIdA, importIdB);
+    assert.ok(log.some((i) => i.importId === importIdA), 'first commit missing from the imports log');
+    assert.ok(log.some((i) => i.importId === importIdB), 'second commit missing from the imports log');
+  });
+});
+
+test('rolling back a zero-row import (a re-committed duplicate) removes its log entry', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files });
+    const second = await (await post(base, '/api/import/commit', { files })).json();
+    const zeroRowImportId = second.results[0].importId;
+    assert.equal(second.results[0].summary.added, 0);
+
+    let log = await store.read('imports');
+    assert.equal(log.length, 2);
+    assert.ok(log.some((i) => i.importId === zeroRowImportId));
+
+    const res = await fetch(`${base}/api/import/${zeroRowImportId}`, { method: 'DELETE' });
+    assert.equal((await res.json()).removed, 0);
+
+    log = await store.read('imports');
+    assert.equal(log.length, 1, 'the zero-row import\'s log entry should be gone, not stuck forever');
+    assert.ok(!log.some((i) => i.importId === zeroRowImportId));
+
+    // The first (real) import's rows must be untouched.
+    assert.equal((await store.read('ledger')).length, 6);
+  });
+});
+
+test('DELETE on the literal /api/import/preview or /api/import/commit path is a 404, not a no-op rollback', async () => {
+  await withServer(async (base) => {
+    for (const path of ['/api/import/preview', '/api/import/commit']) {
+      const res = await fetch(`${base}${path}`, { method: 'DELETE' });
+      assert.equal(res.status, 404, `${path}: expected 404, got ${res.status}`);
+    }
+  });
+});

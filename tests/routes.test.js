@@ -7,8 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { startServer, createApp } from '../server/index.js';
-import { readBody } from '../server/routes.js';
-import { UserFacingError } from '../server/errors.js';
+import { readBody, UserFacingError } from '../server/http.js';
 
 const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 

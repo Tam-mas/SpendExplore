@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { createStore } from './store.js';
-import { createRouter, serveStatic, sendJson } from './routes.js';
-import { UserFacingError } from './errors.js';
+import { createRouter } from './routes.js';
+import { serveStatic } from './static.js';
+import { sendJson, UserFacingError } from './http.js';
 
 const HOST = '127.0.0.1';   // loopback only, never 0.0.0.0
 
