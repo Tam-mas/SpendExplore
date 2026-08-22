@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 08:51] Added
+
+**Tech:** `lib/query/group-by.js` — `groupBy(transactions, sliceBy, ctx)`, `SLICES`, `TIME_SLICES`
+**Dev:** Groups transactions by nine dimensions (category, group, merchant, person, account, weekday, week, month, amountBand). Time-ordered slices (week, month, weekday) come back chronologically sorted; amountBand pre-sorted by band; others unsorted for later caller sorting. Extended `buildContext` in `filter.js` to return categoryLabels, groupLabels, accountLabels maps alongside existing categoryToGroup and cardOwners.
+**Plain:** You can now group transactions by any of nine dimensions, with automatic sorting for time-based groupings.
+**Why:** Grouping is fundamental to analysis — breaking spend down by time, category, merchant, or person reveals patterns that are invisible in transaction lists.
+
 ### [2026-08-23 12:30] Added
 
 **Tech:** `lib/query/filter.js` — `applyFilters(transactions, filters, ctx)` and `buildContext(snapshot)` for transaction filtering.
