@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 10:35] Added
+
+**Tech:** `web/overview-view.js` — `DEFAULT_PANELS`, `renderOverview()`, `mountOverview()`; `web/app.js` — switched to `mountOverview`; appended to `web/style.css`; new file `tests/overview-panels.test.js`
+
+**Dev:** Overview keeps KPI row and gains three configurable panels (group, category, month). `renderOverview()` takes UI-shaped filters, converts once to query-shape, passes to all panels. Panel configs persist to `localStorage` across page reloads. `mountOverview()` wires event listeners to re-slice all panels when filter bar changes.
+
+**Plain:** Rebuilt the Overview dashboard from configurable panels with a global filter bar that re-slices everything at once.
+
+**Why:** This stitches together the pieces from the last three tasks — filter bar, panel registry, and query engine — into a working Overview. The pure/mount split keeps unit tests fast and end-to-end tests honest about what users see.
+
 ### [2026-08-23 10:30] Added
 
 **Tech:** `web/filter-bar.js` — `filterOptions()`, `renderFilterBar()`, `toQueryFilters()`, `readFilterBar()`, `mountFilterBar()`

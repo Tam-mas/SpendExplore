@@ -89,3 +89,4 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-table th, .viz-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .viz-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .viz-caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
+.viz-filter-bar { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }

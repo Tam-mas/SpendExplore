@@ -60,6 +60,106 @@ export function aggregateOverview(snapshot) {
   return { total, count: spend.length, largest, needsReview, groups, widest };
 }
 
+import { createPanel, mount } from './panel.js';
+import { renderFilterBar, mountFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
+import { query } from '../lib/query/query.js';
+import { escapeHtml as escapeHtmlFromScale, formatMoney } from './charts/scale.js';
+
+const STORAGE_KEY = 'spendexplore.overview.panels';
+
+/** The panel set the Overview opens with. Saved named views are Plan 3. */
+export const DEFAULT_PANELS = Object.freeze([
+  { id: 'by-group', title: 'Where it went', sliceBy: 'group', measure: 'sum', chartType: 'bar' },
+  { id: 'by-category', title: 'By category', sliceBy: 'category', measure: 'sum', chartType: 'bar' },
+  { id: 'by-month', title: 'Over time', sliceBy: 'month', measure: 'sum', chartType: 'line' }
+]);
+
+function loadPanelConfigs() {
+  try {
+    const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : null;
+    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_PANELS.map((p) => ({ ...p }));
+  } catch {
+    return DEFAULT_PANELS.map((p) => ({ ...p }));
+  }
+}
+
+function savePanelConfigs(configs) {
+  try {
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(configs));
+  } catch { /* storage unavailable — panel state simply does not persist */ }
+}
+
+function kpiRow(snapshot, globalFilters) {
+  const result = query(snapshot, { filters: globalFilters, sliceBy: 'category', measure: 'sum' });
+  const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown').length;
+  return `
+  <div class="kpis">
+    <div class="kpi"><span>Total spend</span><b>${formatMoney(result.total)}</b></div>
+    <div class="kpi"><span>Transactions</span><b>${result.stats.txnCount}</b></div>
+    <div class="kpi"><span>Largest single</span><b>${formatMoney(result.stats.largest)}</b></div>
+    <div class="kpi"><span>Needs review</span><b class="${needsReview ? 'warn' : ''}">${needsReview}</b></div>
+  </div>`;
+}
+
+/**
+ * Pure render of the whole Overview: KPIs, filter bar, then the panels.
+ *
+ * `uiFilters` is the FILTER BAR's own shape (`{ month, accountIds, people,
+ * groupIds }`), not a query spec — the bar needs it to mark the active option
+ * as selected. It is converted to query shape once, here, so panels and KPIs
+ * both see the same thing.
+ */
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS) {
+  if (!(snapshot.transactions ?? []).length) {
+    return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
+  }
+  const queryFilters = toQueryFilters(uiFilters);
+  const panels = panelConfigs
+    .map((config) => createPanel(config).html(snapshot, queryFilters))
+    .join('');
+
+  return `
+    ${kpiRow(snapshot, queryFilters)}
+    ${renderFilterBar(snapshot, uiFilters)}
+    ${panels}`;
+}
+
+/** Wire the Overview into a live DOM node. */
+export function mountOverview(root, { snapshot } = {}) {
+  let filters = {};
+  let configs = loadPanelConfigs();
+
+  const draw = () => {
+    root.innerHTML = renderOverview(snapshot, filters, configs);
+  };
+  draw();
+
+  root.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target?.dataset?.filter) {
+      filters = readFilterBar(root);
+      draw();
+      return;
+    }
+    const control = target?.dataset?.panelControl;
+    if (!control) return;
+
+    const panelId = target.closest('[data-panel-id]')?.dataset.panelId;
+    const config = configs.find((c) => c.id === panelId);
+    if (!config) return;
+
+    const panel = createPanel(config);
+    if (control === 'sliceBy') panel.setSlice(target.value);
+    else if (control === 'measure') panel.setMeasure(target.value);
+    else if (control === 'chartType') panel.setChart(target.value);
+
+    configs = configs.map((c) => (c.id === panelId ? { ...panel.config } : c));
+    savePanelConfigs(configs);
+    draw();
+  });
+}
+
 export function renderOverviewView(root, snapshot) {
   const stats = aggregateOverview(snapshot);
 

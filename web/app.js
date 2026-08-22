@@ -1,6 +1,6 @@
 import { getSnapshot } from './api.js';
 import { renderImportView } from './import-view.js';
-import { renderOverviewView } from './overview-view.js';
+import { mountOverview } from './overview-view.js';
 
 const views = {
   overview: document.querySelector('#view-overview'),
@@ -9,7 +9,7 @@ const views = {
 
 async function refresh() {
   const snapshot = await getSnapshot();
-  renderOverviewView(views.overview, snapshot);
+  mountOverview(views.overview, { snapshot });
 }
 
 function showTab(name) {
