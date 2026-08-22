@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 19:50] Added
+
+**Tech:** `lib/dedupe-hash.js` — `transactionId({ accountId, date, amount, rawDescription, occurrenceIndex })`, `assignOccurrenceIndexes(rows)`
+**Dev:** `transactionId` joins the five fields with a separator and takes the first 16 hex chars of a SHA-256 digest; `amount` is normalised via `Number(amount).toFixed(2)` (with `-0.00` folded to `0.00`) so equivalent numeric representations — `-64.15` vs `-64.150`, or a float artifact like `0.1 + 0.2` — always hash the same. `assignOccurrenceIndexes` numbers each row by its position within its own duplicate group **in the file being imported** (grouped by accountId/date/amount/rawDescription), counting from 0 — not a counter against the existing ledger — which is what makes re-import idempotent: the same file always assigns the same indexes, so the same ids, so a re-import adds nothing, while two genuinely-identical same-day transactions (two Coles trips, two Myki top-ups) still get distinct ids via distinct indexes. Returns new row objects in a new array; does not mutate its input. Caveat carried from the design note: if the same transaction is split across two separate files that each contain only one half of what would have been a duplicate pair, both get `occurrenceIndex: 0` and one is treated as a duplicate on import — accepted as rare and preferable to the alternative of silently duplicating real spend, and always visible via the import summary's skipped-duplicate count. The plan's reference implementation had a literal syntax error (an unterminated string in `.join(`) — reimplemented cleanly with an explicit separator constant rather than copied as-is.
+**Plain:** Added the code that gives every imported bank transaction a stable ID, so re-importing the same statement never creates duplicate entries, while two real separate purchases that happen to look identical (same day, same amount, same description) still both get kept.
+**Why:** Bank statements get re-exported and re-imported over years of overlapping date ranges, and the ledger needs to just merge cleanly every time rather than the user having to manually spot and delete duplicate rows — or worse, having a genuine repeated purchase like a second Myki top-up silently dropped because it looked like a duplicate.
+
 ### [2026-08-22 19:40] Fixed
 
 **Tech:** `lib/merchant-normalise.js` — `normaliseMerchant()`'s `strippedFromFront` flag, replacing the narrower `gatewayPrefixStripped`
