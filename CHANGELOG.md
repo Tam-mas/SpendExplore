@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 15:02] Added
+
+**Tech:** `lib/query/query.js` — `query(snapshot, spec)` composing filter, slice, measure and stats  
+**Dev:** `query` chains `applyFilters` → `groupBy` → `measure` into one contract: UI passes pure config (filters, sliceBy, measure, sort, limit) and gets back rows ready to render. Grand totals computed before limit, so truncation still reports true overall magnitude. Time-ordered slices preserve chronological order ignoring value sort. Value ties broken by secondary label sort for stable output. Returns only computed fields—never raw transactions—enforcing the contract boundary.  
+**Plain:** The UI now has a single, pure contract for turning dashboard config into renderable rows without accessing raw transactions.  
+**Why:** The dashboard couldn't be built as pure views — it needed direct transaction access. This contract separates UI state (what's selected) from data results (what's drawn), so dashboards become configuration-driven and fully testable.
+
 ### [2026-08-23 14:35] Added
 
 **Tech:** `lib/query/measures.js` — `measure(rows, name)`, `MEASURES`, `round2()`, `medianOf()`; `lib/query/stats.js` — `concentrationStats(rows)`
