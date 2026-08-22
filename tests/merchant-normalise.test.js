@@ -80,6 +80,30 @@ test('a leading digit+letter brand name is not mistaken for a reference code', (
   assert.equal(normaliseMerchant('13CABS Melbourne VI AUS Card xx4321'), '13CABS');
 });
 
+// Fix 1 (re-review gap): the first-token exemption must not apply when a
+// payment-gateway prefix (SQ*/SMP*/LSP*/...) was glued directly onto the
+// following token — that token is only "leading" because unrelated gateway
+// routing metadata was stripped in front of it, not because it is genuinely
+// the first content token of the raw description. Without this, a bare
+// reference code immediately after a gateway prefix gets wrongly promoted
+// to the merchant name.
+test('a reference code glued directly onto a gateway prefix is still stripped, not promoted to merchant', () => {
+  assert.notEqual(normaliseMerchant('SMP*COBURG03'), 'Coburg03');
+  assert.notEqual(normaliseMerchant('SQ*WK2PZP Sydney AU'), 'Wk2pzp');
+  assert.notEqual(normaliseMerchant('LSP*AB12345 Melbourne VI AUS'), 'Ab12345');
+});
+
+// Guard case for the fix above: a gateway prefix immediately followed by a
+// REAL merchant name that happens to start with a digit must still survive.
+// This is the case a too-broad "disable exemption whenever a gateway prefix
+// was stripped" fix could break.
+test('a gateway prefix followed by a real digit-led merchant name still survives', () => {
+  assert.equal(
+    normaliseMerchant('LSP*3 Ravens Thornbury AU AUS Card xx4321 Value Date: 06/08/2026'),
+    '3 Ravens'
+  );
+});
+
 // Fix 1, half B: a genuine trailing reference code appended by the payment
 // terminal is still stripped. Pinned separately from half A so a future
 // simplification (e.g. reverting to a blind whole-string regex) can't

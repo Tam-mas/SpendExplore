@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 19:34] Fixed
+
+**Tech:** `lib/merchant-normalise.js` — `normaliseMerchant()`'s reference-code exemption, plus new `trimTrailingNoise()` helper
+**Dev:** Re-review of the previous fix wave found the first-token exemption for the reference-code strip was computed on the string *after* `STRIP_PATTERNS` had already removed gateway prefixes (`SQ*`/`SMP*`/`LSP*`), so a gateway prefix glued directly onto a bare code (`SMP*COBURG03`, `SQ*WK2PZP Sydney AU`, `LSP*AB12345 Melbourne VI AUS`) promoted that code to token 0 and wrongly kept it as the merchant name. Fixed by tracking, during the `STRIP_PATTERNS` loop, whether `GATEWAY_PREFIX_RE` (now hoisted to its own named constant so it can be compared by reference) actually matched — `gatewayPrefixStripped` — and disabling the index-0 exemption whenever it did: `(idx === 0 && !gatewayPrefixStripped) || !REFERENCE_CODE_RE.test(tok)`. A real merchant name that happens to start with a digit right after a gateway prefix (`LSP*3 Ravens ...` → `3 Ravens`) is unaffected because "3" is only one character, far under the 5-char minimum the code pattern requires, so it was never going to falsely match regardless of the exemption. Also addressed two review minors: extracted the trailing-noise-trim `while` loop, which had been copy-pasted three times, into a single `trimTrailingNoise(tokens)` helper called from all three sites; and added a comment on `REFERENCE_CODE_RE` documenting that its missing `i` flag is load-bearing for idempotency (an already-title-cased string can never re-match the all-uppercase pattern on a second pass) and must not be "cleaned up" to case-insensitive.
+**Plain:** Fixed a leftover gap in yesterday's merchant-name fix: a payment-terminal reference code stuck directly onto a routing prefix (like `SMP*COBURG03`) was being shown as if it were the shop's name instead of being discarded.
+**Why:** The previous fix solved the common case but missed a narrower one the reviewer caught — a wrong merchant name from a glued-together code would have been just as confusing as the original bug, so it's worth closing off completely rather than leaving a known edge case unfixed.
+
 ### [2026-08-22 19:25] Fixed
 
 **Tech:** `lib/merchant-normalise.js` — `normaliseMerchant()`'s reference-code strip, token cap, de-duplication, and trailing-noise trim
