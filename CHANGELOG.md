@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 01:10] Added
+
+**Tech:** `server/store.js` — `createStore(dataDir) → { read, write, init, backup }`; `tests/store.test.js`
+**Dev:** The only filesystem-touching module in the project. `write()` serialises to JSON before any I/O, then writes to `<file>.tmp` and `rename`s over the target, so a value that fails to serialise (e.g. a circular reference) never touches disk and a crash mid-write can't leave a half-written `ledger.json`. `COLLECTIONS` is a hardcoded allow-list of the six collection names; an unknown name throws before any path is built, closing off path traversal via a crafted name. Fixed a real bug in the brief's reference `backup()`: its timestamp directory name was millisecond-resolution only, so two backups requested in the same millisecond would silently collide and the second would overwrite the first — confirmed by freezing `Date` in a test so both calls compute an identical stamp. Fixed by probing for an existing directory and appending a numeric suffix until the name is free.
+**Plain:** Added the module that saves and loads all the app's data as JSON files, always safely (a crash can't corrupt your file) and always with a backup taken before anything is overwritten.
+**Why:** Years of imported bank data live in these files, so a half-written file after a crash or two backups silently overwriting each other would mean losing history with no way back — this closes both gaps before anything else in the app is built on top of it.
+
 ### [2026-08-23 00:30] Fixed
 
 **Tech:** `lib/csv-parse.js` — new `parseCsvWithLines(text) → {fields, line}[]`, with `parseCsv` reimplemented in terms of it; `lib/ingest.js` — `sniffFormat` call wrapped in try/catch, malformed rows now report the true physical line
