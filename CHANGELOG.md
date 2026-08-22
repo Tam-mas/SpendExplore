@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-22 17:05] Added
+
+**Tech:** `lib/format-sniff.js` — `sniffFormat(rows)`, `parseDate(value, dateFormat)`, `parseAmount(value)`
+**Dev:** Infers column layout, date format and sign convention from sampled rows (first 50) rather than requiring a config file per bank. Column roles are scored, not hard-coded: the date column is whichever one matches a date pattern in ≥80% of sampled values; among remaining numeric columns, the one with the higher share of negatives and the smaller mean magnitude wins as `amount` (a running balance is near-always positive and larger), so the 4-column `Date,Amount,Description,Balance` layout resolves correctly even though both non-date columns are numeric; of the remaining text columns, the longest-average one is `description` and the lowest-cardinality one is `account`. Day/month order is genuinely ambiguous when no sampled date has a day above 12 (`05/08/2026` could be 5 Aug or 8 May) — in that case the function still returns a best guess (Australian `DD/MM/YYYY`) but sets `dateFormatConfidence: 'low'` so the import preview can warn the user instead of silently picking a side. `sniffFormat` never applies its guess; it only proposes one. Implemented the brief's reference implementation verbatim — unlike the prior two tasks, all 10 of its own tests passed on the first run, so no bug-fix was needed here.
+**Plain:** Added the code that looks at an imported bank CSV and guesses which column is the date, which is the amount, and whether spending shows up as negative or positive numbers — a guess the app will show you before importing anything.
+**Why:** Every bank exports its CSV differently, and if the app guessed wrong about which number is money spent vs. money received, every chart would flip upside down without any obvious sign something was wrong — this makes that guess visible and checkable instead of silent.
+
 ### [2026-08-22 16:20] Fixed
 
 **Tech:** `lib/csv-parse.js` — bare mid-field quotes now literal, leading UTF-8 BOM stripped
