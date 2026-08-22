@@ -100,7 +100,90 @@ test('a positive amount from a merchant with no prior spend is income', () => {
   assert.deepEqual(result, { categoryId: 'income', categorySource: 'rule' });
 });
 
+test('amount of exactly zero is treated as spend, not income', () => {
+  // A $0 transaction (fee waiver, balance check, etc.) is not a deposit, so
+  // it must not take the income branch, which only exists to stop a real
+  // salary/refund deposit being netted against a spending category. With
+  // amount 0 there is nothing to net, so it falls to the ordinary rule/
+  // uncategorised path like any other non-positive amount.
+  const result = categoriseTransaction({ amount: 0, merchant: 'Sunshine Deli' }, [], new Set());
+  assert.deepEqual(result, { categoryId: 'uncategorised', categorySource: 'unknown' });
+});
+
+test('a positive amount from a merchant with prior spend but no matching rule is uncategorised, not income', () => {
+  // Prior spend at this merchant means a positive amount is a refund of
+  // that spend, not a fresh deposit — but if no rule recognises the
+  // merchant at all, there is no category to refund into, so it still
+  // falls through to uncategorised rather than being reclassified as income.
+  const result = categoriseTransaction({ amount: 15, merchant: 'Sunshine Deli' }, [], new Set(['sunshine deli']));
+  assert.deepEqual(result, { categoryId: 'uncategorised', categorySource: 'unknown' });
+});
+
+// --- Regression coverage for the short-token false-positive fix ---
+// Several seed rules used to be bare `contains` substrings short enough to
+// hit inside an unrelated longer word (e.g. "iga" inside "Newsagency",
+// "atm" inside "Batman"). Fixed by converting them to word-boundary regex
+// rules. Each case below pins BOTH halves — the false positive is gone AND
+// the genuine merchant still matches — so a future simplification can't
+// silently regress one while appearing to fix the other.
+test('short-token rules no longer produce false positives on unrelated merchants', async () => {
+  const rules = await load('rules');
+  // None of these merchants share a genuine word with any seed rule, so the
+  // correct result is null, not merely "not the old wrong category" — a
+  // weaker assertion could pass while the merchant lands on some other
+  // wrong category by coincidence.
+  const noLongerMatch = [
+    'Cardigan Street Newsagency',  // was: "iga" inside "Newsagency" -> groceries
+    'Aldinga Beach Newsagency',    // was: "aldi" inside "Aldinga" -> groceries
+    'The Eagle Hotel Fitzroy',     // was: "agl" inside "Eagle" -> energy
+    'Nagle College Fees',          // was: "agl" inside "Nagle" -> energy
+    'Batman Avenue Carpark',       // was: "atm" inside "Batman" -> cash
+    'Shellharbour Council Rates',  // was: "shell" inside "Shellharbour" -> fuel
+    'Opals Down Under',            // was: "opal" inside "Opals" -> public-transport
+    'Accidental Damage Cover'      // was: "dental" inside "Accidental" -> doctors
+  ];
+  for (const merchant of noLongerMatch) {
+    assert.equal(matchRule(merchant, rules), null, `${merchant} should not match any rule`);
+  }
+});
+
+test('short-token rules still match the genuine merchant they exist for', async () => {
+  const rules = await load('rules');
+  const stillMatches = {
+    'IGA Coburg': 'groceries',
+    'Aldi Stores': 'groceries',
+    'AGL Energy': 'energy',
+    'Wdl Atm Nab': 'cash',
+    'BP': 'fuel',        // whole-string match: the old trailing-space guard on "bp " could never match this
+    'BP Coburg': 'fuel',
+    'Ola Cabs': 'rideshare-taxi',
+    'Shell Coburg': 'fuel',
+    'Opal Top Up': 'public-transport',
+    'Bright Smiles Dental': 'doctors'
+  };
+  for (const [merchant, categoryId] of Object.entries(stillMatches)) {
+    assert.equal(matchRule(merchant, rules), categoryId, `${merchant} should still be ${categoryId}`);
+  }
+});
+
 // --- Additional tests over the actual seed data (not hand-picked examples) ---
+
+// Extract the literal token a rule matches on, for reachability comparison.
+// 'contains'/'exact' rules match literally on their (lower-cased) value. A
+// 'regex' rule can only be reasoned about here if it has the simple
+// `\bTOKEN\b` shape every seed regex rule uses — any string satisfying
+// `\bTOKEN\b` necessarily contains TOKEN as a plain substring too, so an
+// earlier 'contains' rule for TOKEN (or a substring of TOKEN) would already
+// have matched first. A regex outside that shape is left un-reasoned-about
+// (returns null) rather than guessed at.
+function coreLiteral(rule) {
+  if (rule.match === 'contains' || rule.match === 'exact') return rule.value.toLowerCase();
+  if (rule.match === 'regex') {
+    const m = /^\\b([a-z0-9 .'-]+)\\b$/i.exec(rule.value);
+    return m ? m[1].toLowerCase() : null;
+  }
+  return null;
+}
 
 test('no seed rule is unreachable: no rule is shadowed by an earlier, more general rule', async () => {
   const rules = await load('rules');
@@ -111,14 +194,16 @@ test('no seed rule is unreachable: no rule is shadowed by an earlier, more gener
     // Only a 'contains' rule can universally subsume a later rule: any
     // string that satisfies the later rule's match automatically contains
     // the earlier rule's value too, once the earlier value is a substring
-    // of the later one.
+    // of the later one. A 'regex' earlier rule is stricter than plain
+    // `contains` (it requires word boundaries), so it can never be assumed
+    // to universally subsume anything and is excluded as a shadow source.
     if (earlier.match !== 'contains') continue;
     const earlierValue = earlier.value.toLowerCase();
 
     for (let j = i + 1; j < rules.length; j++) {
       const later = rules[j];
-      if (later.match !== 'contains' && later.match !== 'exact') continue;
-      const laterValue = later.value.toLowerCase();
+      const laterValue = coreLiteral(later);
+      if (laterValue === null) continue;
 
       if (laterValue.includes(earlierValue)) {
         shadowed.push(
