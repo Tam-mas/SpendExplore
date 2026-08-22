@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 17:30] Added
+
+**Tech:** `web/charts/chart-treemap.js` — `squarify()`, `renderTreemap()`; `web/charts/chart-dots.js` — `renderDots()`
+
+**Dev:** Treemap partitions by value using sequential blue, avoiding categorical hues' all-pairs CVD failure. Dot plot draws one dot per transaction, stacking overlapping marks to show density. Only the maximum outlier gets a direct label; tooltips reveal individual amounts.
+
+**Plain:** Added treemap (for composition by magnitude) and dot plot (for distribution shape), both pure string-builders using non-categorical encodings.
+
+**Why:** The 7 validated categorical hues fail when all-pairs are adjacent (normal vision ΔE 12.9 vs. floor of 15). Treemap uses sequential colour keyed to magnitude — area and colour encode the same thing, which is correct, not redundant. Dot plot uses a single hue to stay a simple series, letting the scatter pattern itself show whether spending is concentrated in a few large transactions or spread across many.
+
 ### [2026-08-23 16:40] Fixed
 
 **Tech:** `web/charts/scale.js`, `web/charts/chart-donut.js`, `web/charts/chart-stacked.js`, `web/charts/chart-line.js`
