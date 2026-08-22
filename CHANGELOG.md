@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 16:10] Added
+
+**Tech:** `web/charts/palette.js` — `GROUP_SLOTS`, `SEQUENTIAL_BLUE`, `SURFACES`, `TEXT`, `DIVERGING`, `colourForGroup()`, `colourForCategory()`, `sequentialColour()`, `cssVariables()`  
+**Dev:** GROUP_SLOTS maps 7 taxonomy groups to validated colour pairs (light/dark), keyed by groupId so filtering one group never repaints the others. colourForCategory() steps each group's hue toward the surface for within-group categories. sequentialColour() maps 0..1 to an ordinal-safe 13-step ramp (step 250+ light, step 600- dark), staying inside mode-specific contrast bands. cssVariables() emits a :root-ready custom-property block per mode.  
+**Plain:** Added the colour system for charts, designed for colorblindness and contrast, keyed by what a transaction belongs to rather than where it ranks.  
+**Why:** A palette validated for colorblind vision and contrast (≥3:1 dark, ≥2:1 light with direct labels) lets users read spending data reliably. Keying by group identity, not position, means filtering a category never causes the others to repaint into new colours — the same group is always the same hue, making patterns stable and memorable across interactions.
+
 ### [2026-08-23 15:02] Added
 
 **Tech:** `lib/query/query.js` — `query(snapshot, spec)` composing filter, slice, measure and stats  
