@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 09:43] Added
+
+**Tech:** `web/charts/index.js` — `CHART_TYPES`, `chartsFor()`, `renderChart()`, `defaultChartFor()`
+
+**Dev:** Registry encodes chart-type validity rules: line/stacked only for time slices, donut/treemap only for additive measures, dots only for sum, table valid everywhere. Each type carries `render` and `validFor(slice, measure)` functions.
+
+**Plain:** Chart switcher now offers only types that make sense for the current slice and measure — no misleading line through categories, no donut implying a whole from averages.
+
+**Why:** The product decision to restrict chart choice was already implicit in the design; making it explicit in code prevents accidental UI regressions and documents why each type is excluded.
+
 ### [2026-08-23 22:10] Fixed
 
 **Tech:** `web/charts/chart-dots.js` — restored the `<title>` hover tooltip on every dot, not just the outlier
