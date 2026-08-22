@@ -5,8 +5,8 @@
   { "match": "contains", "value": "coles",               "categoryId": "groceries" },
   { "match": "contains", "value": "woolworths",          "categoryId": "groceries" },
   { "match": "contains", "value": "ww metro",            "categoryId": "groceries" },
-  { "match": "regex",    "value": "\\baldi\\b",           "categoryId": "groceries" },
-  { "match": "regex",    "value": "\\biga\\b",            "categoryId": "groceries" },
+  { "match": "contains", "value": "aldi",                "categoryId": "groceries" },
+  { "match": "contains", "value": "iga",                 "categoryId": "groceries" },
   { "match": "contains", "value": "foodworks",           "categoryId": "groceries" },
   { "match": "contains", "value": "costco",              "categoryId": "groceries" },
   { "match": "contains", "value": "fruit",               "categoryId": "groceries" },
@@ -32,7 +32,7 @@
 
   { "match": "contains", "value": "myki",                "categoryId": "public-transport" },
   { "match": "contains", "value": "ptv",                 "categoryId": "public-transport" },
-  { "match": "regex",    "value": "\\bopal\\b",           "categoryId": "public-transport" },
+  { "match": "contains", "value": "opal",                "categoryId": "public-transport" },
   { "match": "contains", "value": "metro trains",        "categoryId": "public-transport" },
   { "match": "contains", "value": "v/line",              "categoryId": "public-transport" },
 
@@ -45,12 +45,12 @@
 
   { "match": "contains", "value": "uber",                "categoryId": "rideshare-taxi" },
   { "match": "contains", "value": "didi",                "categoryId": "rideshare-taxi" },
-  { "match": "regex",    "value": "\\bola\\b",            "categoryId": "rideshare-taxi" },
+  { "match": "contains", "value": "ola",                 "categoryId": "rideshare-taxi" },
   { "match": "contains", "value": "13cabs",              "categoryId": "rideshare-taxi" },
 
   { "match": "contains", "value": "liberty oil",         "categoryId": "fuel" },
-  { "match": "regex",    "value": "\\bbp\\b",             "categoryId": "fuel" },
-  { "match": "regex",    "value": "\\bshell\\b",          "categoryId": "fuel" },
+  { "match": "contains", "value": "bp",                  "categoryId": "fuel" },
+  { "match": "contains", "value": "shell",               "categoryId": "fuel" },
   { "match": "contains", "value": "ampol",               "categoryId": "fuel" },
   { "match": "contains", "value": "caltex",              "categoryId": "fuel" },
   { "match": "contains", "value": "7-eleven",            "categoryId": "fuel" },
@@ -62,13 +62,13 @@
   { "match": "contains", "value": "amcal",               "categoryId": "pharmacy" },
 
   { "match": "contains", "value": "medical",             "categoryId": "doctors" },
-  { "match": "regex",    "value": "\\bdental\\b",         "categoryId": "doctors" },
+  { "match": "contains", "value": "dental",              "categoryId": "doctors" },
   { "match": "contains", "value": "pathology",           "categoryId": "doctors" },
   { "match": "contains", "value": "diagnostics",         "categoryId": "doctors" },
   { "match": "contains", "value": "radiology",           "categoryId": "doctors" },
 
   { "match": "contains", "value": "ovo energy",          "categoryId": "energy" },
-  { "match": "regex",    "value": "\\bagl\\b",            "categoryId": "energy" },
+  { "match": "contains", "value": "agl",                 "categoryId": "energy" },
   { "match": "contains", "value": "origin energy",       "categoryId": "energy" },
   { "match": "contains", "value": "energy australia",    "categoryId": "energy" },
   { "match": "contains", "value": "red energy",          "categoryId": "energy" },
@@ -113,7 +113,7 @@
   { "match": "contains", "value": "airbnb",              "categoryId": "travel" },
   { "match": "contains", "value": "booking.com",         "categoryId": "travel" },
 
-  { "match": "regex",    "value": "\\batm\\b",            "categoryId": "cash" },
+  { "match": "contains", "value": "atm",                 "categoryId": "cash" },
   { "match": "contains", "value": "transfer to",         "categoryId": "transfers" },
   { "match": "contains", "value": "transfer from",       "categoryId": "transfers" },
   { "match": "contains", "value": "account fee",         "categoryId": "fees-interest" },
