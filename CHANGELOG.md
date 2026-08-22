@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 04:10] Added
+
+**Tech:** `server/routes.js` — `POST /api/import/preview`, `POST /api/import/commit`, `DELETE /api/import/:importId`; `tests/import-routes.test.js`
+**Dev:** Preview and commit share one `ingest()` call per file, threading `existingIds`/`existingMerchants` across files in a request so a row or refund in file B can dedupe or net against file A. Fixed a real bug in the brief's reference `nextImportId`: its sequence number was derived from the current imports log length, which drops after a rollback and can then reissue an id a still-present import already owns; replaced with a random suffix. Commit and rollback now compensate the ledger write if the paired imports-log write fails, so the two files can't drift out of sync; request bodies (files, mappingOverride, accountId) are validated before use, never left to throw.
+**Plain:** Added the endpoints that actually save an imported bank statement (or preview it first, or undo it), always backing up before touching your saved data.
+**Why:** This is the first code that can actually rewrite years of imported transactions, so it mattered more than usual that a preview can never lie about what commit will do, and that a rollback can never remove the wrong import's rows.
+
 ### [2026-08-23 03:15] Fixed
 
 **Tech:** `server/errors.js` — new `UserFacingError` class; `server/store.js` — corrupt-JSON throw now uses it; `server/index.js` — catch-all distinguishes it from unexpected errors; `tests/routes.test.js` — 4 new tests, 2 vacuous traversal-encoding cases replaced
