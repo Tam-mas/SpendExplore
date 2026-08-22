@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 12:30] Added
+
+**Tech:** `lib/query/filter.js` — `applyFilters(transactions, filters, ctx)` and `buildContext(snapshot)` for transaction filtering.
+**Dev:** `buildContext` precomputes category-to-group mappings and card-to-person lookups into a context object, so filtering stays a single flat scan. `applyFilters` excludes excluded and income rows by default—they'd silently distort spend totals otherwise. Empty filter arrays mean "no constraint", not "match nothing", so an untouched UI shows everything.
+**Plain:** You can now filter a transaction list by date, account, category, group, person, merchant, and amount without altering the original array.
+**Why:** Exploration and reporting both need flexible filters, and baking in safe defaults (omit excluded/income) protects against accidental misreporting.
+
 ### [2026-08-23 08:10] Added
 
 **Tech:** `web/index.html`, `web/style.css`, `web/api.js`, `web/import-view.js`, `web/overview-view.js`, `web/app.js`; `tests/smoke.test.js`, `tests/web-modules.test.js`, `tests/overview-aggregate.test.js`
