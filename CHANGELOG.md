@@ -1,5 +1,12 @@
 # Changelog
 
+### [2026-08-23 05:45] Added
+
+**Tech:** `server/routes/transactions.js` — `createTransactionRoutes(store, serialized)`: `PATCH /api/transactions/:id`, `POST /api/categories`; new `server/mutation-gate.js` shared by `routes/import.js` and `routes/transactions.js`; `tests/transaction-routes.test.js` — 14 tests
+**Dev:** Editing a category marks `categorySource: "manual"`; `applyToPast` and `rememberRule` both default off and skip rows already marked manual. Fixed a real gap in the brief's reference: it never backed up before rewriting the ledger, unlike the import path, so I added `store.backup()` before the write. The import commit's concurrency gate was local to that file, but PATCH shares the same ledger read-modify-write hazard, so it's now `mutation-gate.js`, created once in `routes.js` and passed to both route modules.
+**Plain:** Added the endpoints that let you fix a transaction's category, optionally apply that fix to past transactions, and optionally teach the app to categorise that merchant automatically next time.
+**Why:** Correcting a category should never silently rewrite old totals or duplicate a rule, and editing a transaction while a statement is mid-import should never lose either change.
+
 ### [2026-08-23 05:05] Fixed
 
 **Tech:** `server/routes/import.js` — commit/rollback serialised behind a promise-chain gate, zero-row rollback now clears its log entry, `writeWithCompensation()` helper, local-date import ids, literal `preview`/`commit` paths excluded from the rollback regex; new `server/http.js`, `server/static.js`; `server/routes.js` now a thin dispatcher; `server/errors.js` removed; `tests/import-routes.test.js` — 3 new tests

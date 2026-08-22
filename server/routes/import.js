@@ -114,7 +114,7 @@ async function writeWithCompensation(store, collection, data, compensateCollecti
  * returns `false` (synchronously) when the request isn't for this router,
  * so the caller can fall through to other routes without awaiting.
  */
-export function createImportRoutes(store) {
+export function createImportRoutes(store, serialized) {
   /**
    * Run ingest() once per file, in order. Purely in-memory — no store I/O —
    * so it never needs to be part of the concurrency gate below.
@@ -156,19 +156,19 @@ export function createImportRoutes(store) {
   // then write one after another: the second write wins outright and the
   // first commit's rows are gone from disk, even though its request already
   // returned 200 with real importIds for rows that no longer exist anywhere.
-  // Serialising the two mutating handlers behind one promise chain — so
-  // each one only starts once the previous has fully finished, backup
-  // through final write — closes that window. It also makes the
-  // compensating write above sound: without serialisation, a compensating
-  // write could restore a stale ledger snapshot and erase a *different*
-  // request's rows that committed successfully in between. Preview does no
-  // writes at all and is deliberately left off this gate.
-  let gate = Promise.resolve();
-  const serialized = (fn) => {
-    const result = gate.then(fn, fn);
-    gate = result.then(() => {}, () => {});
-    return result;
-  };
+  // Serialising the mutating handlers behind one promise chain — so each
+  // one only starts once the previous has fully finished, backup through
+  // final write — closes that window. It also makes the compensating write
+  // above sound: without serialisation, a compensating write could restore
+  // a stale ledger snapshot and erase a *different* request's rows that
+  // committed successfully in between. Preview does no writes at all and is
+  // deliberately left off this gate.
+  //
+  // `serialized` is created by server/routes.js and shared with
+  // server/routes/transactions.js — a PATCH there also does a
+  // read-modify-write on 'ledger', the same hazard, so it must queue
+  // behind the SAME gate rather than a private one of its own. See
+  // server/mutation-gate.js for the full reasoning.
 
   function validateImportBody(rawBody) {
     // readBody can hand back JSON.parse's result for any valid JSON body
