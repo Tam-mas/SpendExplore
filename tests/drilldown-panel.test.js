@@ -96,3 +96,25 @@ test('hideable: false omits the hide column and its note entirely, but keeps re-
   assert.doesNotMatch(html, /this session/i);
   assert.match(html, /data-drilldown-action="recategorise"/);
 });
+
+test('offers a hide-all control in the header when hideable, unchecked while some rows are visible', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set() });
+  assert.match(html, /data-drilldown-action="toggle-hide-all"/);
+  assert.doesNotMatch(html, /toggle-hide-all"\s*checked/);
+});
+
+test('the hide-all control is checked once every row is already hidden', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set(['a', 'b']) });
+  assert.match(html, /toggle-hide-all"\s*checked/);
+});
+
+test('the hide-all control is absent when hideable is false', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set(), hideable: false });
+  assert.doesNotMatch(html, /toggle-hide-all/);
+});
+
+test('the hide-all control is unchecked, not absent, for an empty row list', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: [], excludedIds: new Set() });
+  assert.match(html, /data-drilldown-action="toggle-hide-all"/);
+  assert.doesNotMatch(html, /toggle-hide-all"\s*checked/);
+});

@@ -197,6 +197,15 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     draw();
   }
 
+  /** Hide or restore every transaction currently listed in the open drill-down panel. */
+  function toggleHiddenAll(hide) {
+    if (!drilldown) return;
+    for (const t of drilldown.rows) {
+      if (hide) excludedIds.add(t.id); else excludedIds.delete(t.id);
+    }
+    draw();
+  }
+
   async function reassign(id, categoryId) {
     await patchTransaction(id, { categoryId });
     current = await getSnapshot();
@@ -283,6 +292,10 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
       if (event.target.closest('[data-drilldown-action="close"]')) closeDrilldown();
     });
     drilldownRoot.addEventListener('change', (event) => {
+      if (event.target.dataset.drilldownAction === 'toggle-hide-all') {
+        toggleHiddenAll(event.target.checked);
+        return;
+      }
       const row = event.target.closest('[data-drilldown-id]');
       if (!row) return;
       const id = row.dataset.drilldownId;

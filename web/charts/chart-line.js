@@ -3,6 +3,7 @@ import { linearScale, niceTicks, formatMeasure, escapeHtml } from './scale.js';
 const WIDTH = 600;
 const HEIGHT = 220;
 const PAD = { top: 16, right: 56, bottom: 28, left: 56 };
+const MIN_POINT_SPACING = 60; // below this, a month label collides with its neighbour's
 
 const TIME_SLICES = new Set(['week', 'month']);
 
@@ -18,7 +19,12 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   }
   if (!rows.length) return `<p class="viz-empty">No data for these filters</p>`;
 
-  const plotW = WIDTH - PAD.left - PAD.right;
+  // Width grows with the number of points instead of cramming them —
+  // years of monthly data overflow into `.viz-plot`'s own horizontal
+  // scrollbar rather than collapsing the x-axis labels into each other.
+  const minPlotW = rows.length > 1 ? (rows.length - 1) * MIN_POINT_SPACING : 0;
+  const width = Math.max(WIDTH, PAD.left + PAD.right + minPlotW);
+  const plotW = width - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const maxValue = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
   const yScale = linearScale(maxValue, plotH);
@@ -32,7 +38,7 @@ export function renderLine(result, { title = '', colourFor } = {}) {
 
   const grid = niceTicks(maxValue, 4).map((tick) => {
     const y = PAD.top + plotH - yScale(tick);
-    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${WIDTH - PAD.right}" y2="${y.toFixed(1)}" class="viz-grid"/>`;
+    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${width - PAD.right}" y2="${y.toFixed(1)}" class="viz-grid"/>`;
   }).join('');
 
   const colour = colourFor ? colourFor(rows[0]) : 'currentColor';
@@ -55,5 +61,5 @@ export function renderLine(result, { title = '', colourFor } = {}) {
     `<text x="${p.x.toFixed(1)}" y="${HEIGHT - 8}" text-anchor="middle" class="viz-label">${escapeHtml(p.row.label)}</text>`
   ).join('');
 
-  return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="100%" class="viz-line">${grid}${polyline}${markers}${endLabels}${xLabels}</svg>`;
+  return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${width} ${HEIGHT}" width="${width}" class="viz-line">${grid}${polyline}${markers}${endLabels}${xLabels}</svg>`;
 }

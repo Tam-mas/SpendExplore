@@ -45,7 +45,13 @@ export function renderDrilldown(snapshot, state) {
   const hideNote = hideable
     ? `<p class="viz-note">Hiding a transaction removes it from the charts for this session only — it resets when you reload the page. To exclude one permanently, use the Review tab.</p>`
     : '';
-  const hideHeader = hideable ? '<th></th>' : '';
+  // Checked only once every row is already hidden — an empty list counts as
+  // "not all hidden" (unchecked) rather than vacuously true, so opening an
+  // empty slice never shows a pre-ticked control.
+  const allHidden = rows.length > 0 && rows.every((t) => excludedIds.has(t.id));
+  const hideHeader = hideable
+    ? `<th><label class="drilldown-hide"><input type="checkbox" data-drilldown-action="toggle-hide-all" ${allHidden ? 'checked' : ''}> All</label></th>`
+    : '';
 
   return `
   <div class="drilldown-panel">

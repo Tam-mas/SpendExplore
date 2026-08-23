@@ -96,6 +96,25 @@ test('single-series line has no legend box — the title names it', () => {
   assert.doesNotMatch(renderLine(MONTHLY, opts), /viz-legend/);
 });
 
+test('line widens rather than cramming points when there are many time buckets', () => {
+  const manyMonths = {
+    rows: Array.from({ length: 24 }, (_, i) => row(`k${i}`, `M${i}`, -100)),
+    total: -2400,
+    stats: { txnCount: 24, median: -100, largest: -100, top3Share: 1 },
+    meta: { sliceBy: 'month', measure: 'sum', rowCount: 24, filteredCount: 24, truncated: false }
+  };
+  const svg = renderLine(manyMonths, opts);
+  const widthMatch = svg.match(/<svg[^>]*\swidth="(\d+)"/);
+  assert.ok(widthMatch, 'svg should have an explicit numeric width, not 100%, so it can overflow into a scrollbar instead of squeezing');
+  assert.ok(Number(widthMatch[1]) > 600, `expected width > 600 for 24 points, got ${widthMatch[1]}`);
+});
+
+test('line stays at the base width for few points', () => {
+  const svg = renderLine(MONTHLY, opts);
+  const widthMatch = svg.match(/<svg[^>]*\swidth="(\d+)"/);
+  assert.equal(Number(widthMatch[1]), 600);
+});
+
 test('stacked bar draws one column of segments per time bucket', () => {
   const svg = renderStacked(MONTHLY, { ...opts, series: [
     { key: 'food-drink', label: 'Food & Drink', values: [-100, -150, -120] },
@@ -130,6 +149,37 @@ test('stacked bar direct-labels each time bucket and its total', () => {
   assert.match(svg, /-\$300\.00/);
   assert.match(svg, /-\$450\.00/);
   assert.match(svg, /-\$400\.00/);
+});
+
+test('stacked bar widens rather than shrinking columns when there are many time buckets', () => {
+  const manyMonths = {
+    rows: Array.from({ length: 24 }, (_, i) => row(`k${i}`, `M${i}`, -100)),
+    total: -2400,
+    stats: { txnCount: 24, median: -100, largest: -100, top3Share: 1 },
+    meta: { sliceBy: 'month', measure: 'sum', rowCount: 24, filteredCount: 24, truncated: false }
+  };
+  const svg = renderStacked(manyMonths, { ...opts, series: [{ key: 'a', label: 'A', values: manyMonths.rows.map(() => -100) }] });
+  const widthMatch = svg.match(/<svg[^>]*\swidth="(\d+)"/);
+  assert.ok(widthMatch, 'svg should have an explicit numeric width, not 100%, so it can overflow into a scrollbar instead of squeezing');
+  assert.ok(Number(widthMatch[1]) > 600, `expected width > 600 for 24 columns, got ${widthMatch[1]}`);
+});
+
+test('stacked bar omits per-column total labels once there are too many to fit without overlapping', () => {
+  const manyMonths = {
+    rows: Array.from({ length: 24 }, (_, i) => row(`k${i}`, `M${i}`, -100)),
+    total: -2400,
+    stats: { txnCount: 24, median: -100, largest: -100, top3Share: 1 },
+    meta: { sliceBy: 'month', measure: 'sum', rowCount: 24, filteredCount: 24, truncated: false }
+  };
+  const svg = renderStacked(manyMonths, { ...opts, series: [{ key: 'a', label: 'A', values: manyMonths.rows.map(() => -100) }] });
+  assert.equal((svg.match(/class="viz-value"/g) ?? []).length, 0);
+  // The month labels themselves are unaffected — only the total figure above each bar is dropped.
+  assert.equal((svg.match(/class="viz-label"/g) ?? []).length, 24);
+});
+
+test('stacked bar still labels every column total when there are few of them', () => {
+  const svg = renderStacked(MONTHLY, { ...opts, series: [{ key: 'a', label: 'A', values: [-300, -450, -400] }] });
+  assert.equal((svg.match(/class="viz-value"/g) ?? []).length, 3);
 });
 
 test('stacked bar hover tooltip shows the group name and amount for each segment', () => {
