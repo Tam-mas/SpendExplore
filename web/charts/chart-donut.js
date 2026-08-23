@@ -43,7 +43,9 @@ export function renderDonut(result, { mode = 'light', colourFor, title = '' } = 
     const end = angle + sweep;
     angle = end;
     const colour = colourFor ? colourFor(row) : 'currentColor';
-    return `<path d="${arcPath(cx, cy, RADIUS, RADIUS - THICKNESS, start, end)}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)}</title></path>`;
+    // The folded-together "Other" slice has no single category to drill into.
+    const clickAttrs = row.key === '__other__' ? '' : ` class="viz-clickable" data-slice-key="${escapeHtml(row.key)}"`;
+    return `<path d="${arcPath(cx, cy, RADIUS, RADIUS - THICKNESS, start, end)}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2"${clickAttrs}><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)}</title></path>`;
   }).join('');
 
   const legend = rows.map((row) => {

@@ -31,7 +31,7 @@ export function renderBar(result, { mode = 'light', colourFor, title = '' } = {}
     <g>
       <text x="0" y="${y + BAR_HEIGHT - 3}" class="viz-label">${escapeHtml(row.label)}</text>
       <rect x="${LABEL_WIDTH}" y="${y}" width="${barWidth.toFixed(1)}" height="${BAR_HEIGHT}"
-            rx="4" fill="${colour}"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
+            rx="4" fill="${colour}" class="viz-clickable" data-slice-key="${escapeHtml(row.key)}"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
       <text x="${width}" y="${y + BAR_HEIGHT - 3}" text-anchor="end" class="viz-value">${formatMeasure(row.value, measure)}</text>
     </g>`;
   }).join('');

@@ -42,7 +42,7 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   const markers = points.map((p, i) => {
     const isEnd = i === 0 || i === points.length - 1;
     const title = isEnd ? `<title>${escapeHtml(p.row.label)}: ${formatMeasure(p.row.value, measure)}</title>` : '';
-    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2">${title}</circle>`;
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" class="viz-clickable" data-slice-key="${escapeHtml(p.row.key)}">${title}</circle>`;
   }).join('');
 
   // Selective direct labels: first and last only.

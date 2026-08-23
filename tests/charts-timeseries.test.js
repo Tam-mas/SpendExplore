@@ -134,3 +134,18 @@ test('no timeseries output references an external host', () => {
   const markup = renderDonut(CATEGORICAL, opts) + renderLine(MONTHLY, opts);
   assert.doesNotMatch(markup, /https?:\/\/(?!127\.0\.0\.1|localhost)/);
 });
+
+test('donut marks each slice with its key for drill-down, except the Other bucket', () => {
+  const svg = renderDonut(CATEGORICAL, opts);
+  assert.match(svg, /data-slice-key="fuel"/);
+  const many = { ...CATEGORICAL, rows: Array.from({ length: 12 }, (_, i) => row(`k${i}`, `L${i}`, -(20 - i))) };
+  const manySvg = renderDonut(many, opts);
+  assert.doesNotMatch(manySvg, /data-slice-key="__other__"/);
+});
+
+test('line marks every point with its slice key for drill-down', () => {
+  const svg = renderLine(MONTHLY, opts);
+  assert.match(svg, /data-slice-key="2026-06"/);
+  assert.match(svg, /data-slice-key="2026-07"/);
+  assert.match(svg, /data-slice-key="2026-08"/);
+});

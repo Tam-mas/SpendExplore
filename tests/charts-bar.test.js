@@ -144,3 +144,10 @@ test('no chart output references an external host', () => {
     assert.doesNotMatch(markup, /https?:\/\/(?!127\.0\.0\.1|localhost)/);
   }
 });
+
+test('renderBar marks each bar with its slice key for drill-down', () => {
+  const svg = renderBar(RESULT, opts);
+  assert.match(svg, /data-slice-key="fuel"/);
+  assert.match(svg, /data-slice-key="groceries"/);
+  assert.match(svg, /class="viz-clickable"/);
+});
