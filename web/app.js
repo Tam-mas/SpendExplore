@@ -32,6 +32,12 @@ function showTab(name) {
   for (const button of document.querySelectorAll('#tabs button')) {
     button.classList.toggle('active', button.dataset.tab === name);
   }
+  // A drill-down panel is a fixed overlay independent of which tab section
+  // is visible — switching tabs must actually close it (reset the owning
+  // view's own state), not just rely on the section beneath it being
+  // hidden, or the panel keeps floating over whatever tab you switch to.
+  overview?.closeDrilldown?.();
+  budgets?.closeDrilldown?.();
 }
 
 document.querySelector('#tabs').addEventListener('click', (event) => {

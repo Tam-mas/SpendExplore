@@ -82,3 +82,9 @@ test('escapes category and group labels', () => {
 test('references no external host', () => {
   assert.doesNotMatch(renderBudgets(SNAPSHOT, { month: '2026-08' }), /https?:\/\/(?!127\.0\.0\.1|localhost)/);
 });
+
+test('rows carry data-budgeted reflecting whether the category has a budget', () => {
+  const html = renderBudgets(SNAPSHOT, { month: '2026-08' });
+  assert.match(html, /data-budget-category="groceries" data-budgeted="true"/);
+  assert.match(html, /data-budget-category="alcohol" data-budgeted="false"/);
+});

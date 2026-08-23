@@ -292,7 +292,7 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     });
   }
 
-  return { redraw: draw, refresh };
+  return { redraw: draw, refresh, closeDrilldown };
 }
 
 export function renderOverviewView(root, snapshot) {

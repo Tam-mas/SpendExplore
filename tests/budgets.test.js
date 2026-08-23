@@ -124,3 +124,27 @@ test('allBudgetStatuses reports hasAllocationForMonth false before the first ent
 test('a snapshot with no budgets at all produces no rows', () => {
   assert.deepEqual(allBudgetStatuses({ budgets: [], transactions: [] }, '2026-08'), []);
 });
+
+test('a second edit within the same month wins over the first (last-appended wins on a tie)', () => {
+  const snap = {
+    budgets: [
+      { id: 'a', categoryId: 'travel', amount: 500, effectiveFrom: '2026-08' },
+      { id: 'b', categoryId: 'travel', amount: 900, effectiveFrom: '2026-08' }
+    ],
+    transactions: []
+  };
+  const status = budgetStatus(snap, 'travel', '2026-08');
+  assert.equal(status.allocation, 900);
+});
+
+test('a later actual month still wins over an earlier one when they are not a tie', () => {
+  const snap = {
+    budgets: [
+      { id: 'a', categoryId: 'travel', amount: 500, effectiveFrom: '2026-06' },
+      { id: 'b', categoryId: 'travel', amount: 600, effectiveFrom: '2026-08' }
+    ],
+    transactions: []
+  };
+  assert.equal(budgetStatus(snap, 'travel', '2026-07').allocation, 500); // June's entry still in effect in July
+  assert.equal(budgetStatus(snap, 'travel', '2026-08').allocation, 600); // August's entry now in effect
+});

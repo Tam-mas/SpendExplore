@@ -46,9 +46,9 @@ export function renderBudgets(snapshot, state = {}) {
       const isEditing = editing === c.id;
 
       if (isEditing) {
-        const current = budgeted ? status.allocation : 0;
+        const current = Number(budgeted ? status.allocation : 0) || 0;
         return `
-        <tr data-budget-category="${escapeHtml(c.id)}">
+        <tr data-budget-category="${escapeHtml(c.id)}" data-budgeted="${budgeted}">
           <td>${escapeHtml(c.label)}</td>
           <td colspan="3">
             <input type="number" data-budget-input min="0" step="0.01" value="${current}">
@@ -62,7 +62,7 @@ export function renderBudgets(snapshot, state = {}) {
 
       if (!budgeted) {
         return `
-        <tr data-budget-category="${escapeHtml(c.id)}">
+        <tr data-budget-category="${escapeHtml(c.id)}" data-budgeted="false">
           <td>${escapeHtml(c.label)}</td>
           <td colspan="3" class="budget-unset">No budget set</td>
           <td><button data-budget-action="add" data-category-id="${escapeHtml(c.id)}">Add budget</button></td>
@@ -70,7 +70,7 @@ export function renderBudgets(snapshot, state = {}) {
       }
 
       return `
-      <tr data-budget-category="${escapeHtml(c.id)}">
+      <tr data-budget-category="${escapeHtml(c.id)}" data-budgeted="true">
         <td>${escapeHtml(c.label)}</td>
         <td>${formatMoney(status.allocation)} budgeted · ${formatMoney(status.spend)} spent</td>
         <td><span class="budget-status budget-status-${status.status}">${STATUS_LABELS[status.status]}</span></td>
@@ -151,8 +151,9 @@ export function mountBudgets(root, { snapshot, drilldownRoot } = {}) {
         draw();
       } else if (action === 'save') {
         const input = root.querySelector('[data-budget-input]');
-        const amount = Number(input?.value);
-        if (Number.isFinite(amount) && amount >= 0) {
+        const rawValue = input?.value?.trim() ?? '';
+        const amount = Number(rawValue);
+        if (rawValue !== '' && Number.isFinite(amount) && amount >= 0) {
           await postBudget(categoryId, amount);
           editing = null;
           await refresh();
@@ -162,19 +163,21 @@ export function mountBudgets(root, { snapshot, drilldownRoot } = {}) {
     }
 
     const row = event.target.closest('[data-budget-category]');
-    if (row && !event.target.closest('[data-budget-input]')) {
+    if (row && row.dataset.budgeted === 'true' && !event.target.closest('[data-budget-input]')) {
       const label = row.querySelector('td')?.textContent?.trim() ?? row.dataset.budgetCategory;
       openDrilldown(row.dataset.budgetCategory, label);
       draw();
     }
   });
 
+  function closeDrilldown() {
+    drilldown = null;
+    draw();
+  }
+
   if (drilldownRoot) {
     drilldownRoot.addEventListener('click', (event) => {
-      if (event.target.closest('[data-drilldown-action="close"]')) {
-        drilldown = null;
-        draw();
-      }
+      if (event.target.closest('[data-drilldown-action="close"]')) closeDrilldown();
     });
     drilldownRoot.addEventListener('change', (event) => {
       const row = event.target.closest('[data-drilldown-id]');
@@ -186,5 +189,5 @@ export function mountBudgets(root, { snapshot, drilldownRoot } = {}) {
   }
 
   draw();
-  return { redraw: draw, refresh };
+  return { redraw: draw, refresh, closeDrilldown };
 }
