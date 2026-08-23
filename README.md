@@ -248,6 +248,38 @@ A bucket where the top 3 transactions are 95% of the total is a few big hits. On
 
 The **Dots** chart is the same question drawn: one dot per transaction along an amount axis. A tight cluster with one dot far to the right tells you the story instantly.
 
+### Finding a transaction
+
+The search box above the filter bar matches merchant name or raw bank description, live as you type — "chem" finds Chemist Warehouse. Results open in the same drill-down panel described below.
+
+### Drilling down and re-categorising
+
+Click any bar, donut slice, treemap tile, or line point, and a side panel lists the transactions behind it — date, merchant, amount, and a category dropdown to fix a miscategorised one on the spot. A checkbox lets you hide a transaction from every chart for the rest of this session (it comes back on reload; use Review to exclude one permanently). A banner appears whenever anything is hidden, with a one-click "Show all" to bring it back.
+
+### Over time, stacked
+
+The **Stacked** chart option (alongside Line, for a Week/Month slice) draws one column per month, colour-banded by group, so you can see the *mix* change month to month — not just the total.
+
+---
+
+## Budgets
+
+A separate tab for **envelope budgeting**: set a monthly amount per category, and unspent allocation carries forward automatically. A $500/month Travel budget untouched for ten months shows $5,000 **Available** — not ten months of "you're under budget" that resets and tells you nothing.
+
+Each category shows three things side by side, which is the point: **this month's own allocation vs. spend** (the calendar-month view most budgeting apps stop at), a **status** telling you which of three things is true, and the **Available** balance (the envelope).
+
+| Status | Meaning |
+|---|---|
+| On track | This month's spend is within this month's own allocation |
+| ↻ Covered by rollover | Over this month's allocation, but the envelope is still positive — earlier months' unspent allocation is absorbing it |
+| ⚠ Over | The envelope itself has gone negative |
+
+That middle state is the whole reason this exists: a single big month reads as "over" in every calendar-month budget view, even when, across the year, nothing is wrong.
+
+**Editing** is inline — click the amount, type a new one, save. A change takes effect from the **current month onward**; every past month keeps whatever was actually budgeted for it at the time, so editing today never rewrites history. There's no way to schedule a future change or delete a budget outright — set it to $0 to pause one. Budgets are household-wide (one envelope per category, not split per person), and an envelope starts clean the month you first set it — it has no opinion about what you spent before you turned it on.
+
+Click a budgeted category's row to see that category's transactions for the current month, in the same drill-down panel search and the charts use (minus the session-hide checkbox, which has no meaning here).
+
 ---
 
 ## Architecture
@@ -313,6 +345,7 @@ Everything lives in `data/`, as plain readable JSON you can open, grep, back up,
 | `data/accounts.json` | Accounts, CSV column mappings, card → person mapping |
 | `data/views.json` | Saved dashboards |
 | `data/imports.json` | Audit log: file, timestamp, date range, rows added/skipped |
+| `data/budgets.json` | Budget history per category — append-only, so a past month keeps whatever was actually budgeted for it |
 | `data/backups/` | A full snapshot taken before every import |
 
 `data/seed/` holds the starting taxonomy and ruleset. It's the only part of `data/` that's committed, and it contains no personal information.
@@ -338,6 +371,7 @@ All endpoints are on `127.0.0.1:5173`.
 | `DELETE` | `/api/import/:importId` | Roll back one import |
 | `PATCH` | `/api/transactions/:id` | Set `categoryId`, `excluded`, `note`; optional `applyToPast`, `rememberRule` |
 | `POST` | `/api/categories` | Create a category |
+| `POST` | `/api/budgets` | Add a budget entry (`categoryId`, `amount`) — always appended, `effectiveFrom` stamped server-side as the current month |
 
 Preview and commit run the **same** ingest call with the same arguments — there is exactly one code path, so a preview can't disagree with what gets written.
 
@@ -353,24 +387,28 @@ lib/                      pure, no I/O, no DOM — fully unit-tested
   dedupe-hash.js          stable transaction ids
   categorise.js           merchant → category rule matching
   ingest.js               orchestrates the above
+  review.js               the review queue: grouping, suggestions, the Claude round trip
+  budgets.js              envelope budget calculation: allocation, spend, balance, status
   query/                  the query engine (Seam 1)
     filter.js  group-by.js  measures.js  stats.js  query.js
+    slice-transactions.js  search-transactions.js   drill-down / search data sources
 
 server/                   the only code that touches the filesystem
   index.js                lifecycle, dispatch, binds 127.0.0.1
   http.js  static.js      helpers, static serving
   store.js                atomic JSON storage, backups (Seam 3)
   mutation-gate.js        serialises writes
-  routes.js  routes/      HTTP endpoints
+  routes.js  routes/      HTTP endpoints (import, transactions, budgets)
 
 web/                      plain ES modules, no build step
   index.html  style.css  app.js  api.js
-  import-view.js  overview-view.js  panel.js  filter-bar.js
+  import-view.js  overview-view.js  review-view.js  budgets-view.js
+  panel.js  filter-bar.js  drilldown-panel.js
   charts/                 palette.js, scale.js, seven renderers, registry
 
 data/                     your data (gitignored) + seed/ (committed)
 docs/superpowers/         design spec and implementation plans
-tests/                    375 tests
+tests/                    510 tests
 ```
 
 ---
@@ -382,7 +420,7 @@ npm test                                  # everything
 node --test tests/ingest.test.js          # one file
 ```
 
-375 tests, no test framework — Node's built-in `node:test`.
+510 tests, no test framework — Node's built-in `node:test`.
 
 Coverage is deliberately weighted toward the layers where a bug **silently corrupts years of history** rather than being visible on screen: format sniffing, merchant normalisation, deduplication, categorisation, the query engine, and storage atomicity. The UI has a smoke test and a module-graph test rather than exhaustive coverage.
 
@@ -394,9 +432,8 @@ Being honest about where this stops:
 
 - **Trends, Merchants, Recurring and Compare tabs**, including subscription detection with annualised costs.
 - **Saved named views** and adding/removing/reordering panels.
-- **Budgets** — simple per-category monthly targets.
+- **Per-person or group-level budgets**, scheduling a budget change for a future month, or deleting a budget entirely (set it to $0 to pause one).
 - **Settings UI** for the card → person mapping and account management. The data model supports per-person attribution via card suffix; there's just no screen to configure it yet.
-- **Drill-down from a chart mark** into the underlying transactions.
 - **Dark mode** has validated colour tokens defined but hasn't been visually reviewed.
 
 ---

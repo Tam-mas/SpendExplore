@@ -1,5 +1,26 @@
 # Changelog
 
+### [2026-08-24 02:15] Added
+
+**Tech:** `lib/budgets.js` (new) — `currentMonthKey`, `budgetStatus`, `allBudgetStatuses`; `budgets.json` collection (`server/store.js`, `server/routes/budgets.js`); `web/budgets-view.js` (new) — `renderBudgets`, `mountBudgets`; `web/drilldown-panel.js` — optional `hideable` flag; `web/app.js`, `web/index.html` — fourth "Budgets" tab with its own drill-down root.
+**Dev:** Envelope (rollover) budgeting per category — `budgets.json` is append-only, so editing a budget only ever appends a new entry (never overwrites), and a past month keeps whatever allocation was actually in effect for it. Three-state status per month (on-track / covered-by-rollover / over) computed from the envelope balance, not just the calendar month. Caught and fixed during review: a tie-break bug where a second same-month edit was silently ignored (older entry won on a tie); `currentMonthKey()` was UTC-based and could stamp an edit into the wrong month for ~11 hours around AEST midnight (now local, matching the existing `localDay` fix in `import.js`); switching tabs left an open drill-down panel floating over the next tab.
+**Plain:** Added a Budgets tab — set a monthly amount per category and unspent money rolls forward, so ten months of not touching a $500 Travel budget shows $5,000 available instead of resetting to zero every month.
+**Why:** calendar-month budgets were flagging normal spending as "over budget" the moment one big month exceeded that month's allocation, even when the year as a whole was fine — the user wanted to see both the month and the running total at once, so a month that looks alarming alone can be read correctly in context.
+
+### [2026-08-23 22:00] Added
+
+**Tech:** `lib/query/search-transactions.js` (new) — merchant/description substring search; `web/overview-view.js` — search box wired to reuse the drill-down panel, redraws only the panel (not the whole page) so typing keeps focus; `web/charts/chart-stacked.js` — rewritten from a smooth stacked area to discrete vertical stacked bars; `web/panel.js` — builds per-group series for the Stacked chart type, which was previously listed in the chart dropdown but never actually wired to data.
+**Dev:** Search matches merchant name or raw bank description, case-insensitive, live as you type; deliberately does not exclude session-hidden rows, since search is also how you find and un-hide something. Stacked chart colours by category group regardless of the panel's own slice, same reasoning as Dots colouring by category regardless of slice — group is the only breakdown the app's 7-colour palette is validated safe for.
+**Plain:** Added a search box to find any transaction by merchant name, and fixed the "Stacked" chart option (it silently showed nothing before) into a real month-by-month spending breakdown by category.
+**Why:** the user wanted to search for something like "chem" and see every matching transaction to check its categorisation, and wanted an at-a-glance view of how the spending mix changes month to month, not just the total.
+
+### [2026-08-23 19:30] Added
+
+**Tech:** `web/review-view.js`, `lib/review.js` — Back/Forward navigation through the review queue with the ability to revisit and change a decision made earlier in the session; `web/charts/chart-treemap.js`, `chart-dots.js` — colour by category/group where the palette supports it; `lib/query/slice-transactions.js` (new), `web/drilldown-panel.js` (new) — click-to-drill-down from any chart mark into a side panel with inline re-categorise and a session-only hide toggle; `web/charts/chart-bar.js`, `chart-donut.js`, `chart-line.js` — added the `data-slice-key` marks the drill-down click handling relies on.
+**Dev:** Review's Back/Forward tracks a stable, append-only session order separate from the live (shrinking) queue, so paging back to an already-decided merchant still works. Treemap/Dots colouring is conditional on there being a real category/group to colour by, to avoid regressing the sequential-ramp fallback for other slices. The session-only hide is unrelated to the ledger's permanent `excluded` field and resets on reload.
+**Plain:** Review can now go back to fix a mistake instead of only moving forward; charts got real colours instead of one flat blue; clicking any bar, slice, or point now opens the underlying transactions so you can check or fix them right there.
+**Why:** the review queue had no way back once you'd assigned something, and the charts all rendering in one colour made it hard to tell categories apart at a glance or dig into what made up a number.
+
 ### [2026-08-23 23:30] Fixed
 
 **Tech:** `server/routes/transactions.js` — fixed `notFound` count to track distinct matched ids; `tests/bulk-routes.test.js` — 2 new tests; `tests/review-view.test.js` — anchored weak assertion; `web/review-view.js` — fixed paste-apply message to count skipped merchants; `docs/superpowers/plans/2026-08-23-spendexplore-review-queue.md` — removed vestigial `showAll` field; `CHANGELOG.md` — trimmed review queue entry.
