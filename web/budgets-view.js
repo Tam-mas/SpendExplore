@@ -1,5 +1,8 @@
 import { escapeHtml, formatMoney } from './charts/scale.js';
 import { allBudgetStatuses, currentMonthKey } from '../lib/budgets.js';
+import { transactionsForSlice } from '../lib/query/slice-transactions.js';
+import { renderDrilldown } from './drilldown-panel.js';
+import { postBudget, getSnapshot, patchTransaction } from './api.js';
 
 const STATUS_LABELS = {
   'on-track': 'On track',
@@ -86,4 +89,102 @@ export function renderBudgets(snapshot, state = {}) {
     <thead><tr><th>Category</th><th>This month</th><th>Status</th><th class="num">Available</th><th></th></tr></thead>
     <tbody>${body}</tbody>
   </table>`;
+}
+
+/** The inclusive dateFrom/dateTo for one "YYYY-MM" month. */
+function monthRange(month) {
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { dateFrom: `${month}-01`, dateTo: `${month}-${String(lastDay).padStart(2, '0')}` };
+}
+
+/** Wire the Budgets tab into a live DOM node. */
+export function mountBudgets(root, { snapshot, drilldownRoot } = {}) {
+  let current = snapshot;
+  let editing = null;
+  let drilldown = null; // { label, rows, refetch } | null
+
+  const draw = () => {
+    if (drilldown) {
+      const bucket = drilldown.refetch();
+      drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
+    }
+    root.innerHTML = renderBudgets(current, { month: currentMonthKey(), editing });
+    if (drilldownRoot) {
+      // hideable: false — the session-only hide feature has no meaning here;
+      // nothing on this tab reads the excludeIds filter.
+      drilldownRoot.innerHTML = renderDrilldown(current, drilldown && { ...drilldown, hideable: false });
+      drilldownRoot.classList.toggle('hidden', !drilldown);
+    }
+  };
+
+  function openDrilldown(categoryId, label) {
+    const month = currentMonthKey();
+    const { dateFrom, dateTo } = monthRange(month);
+    const doFetch = () =>
+      transactionsForSlice(current, { filters: { dateFrom, dateTo }, sliceBy: 'category' }, categoryId);
+    const bucket = doFetch();
+    drilldown = bucket ? { label: `${label} — ${month}`, rows: bucket.rows, refetch: doFetch } : null;
+  }
+
+  async function reassign(id, categoryId) {
+    await patchTransaction(id, { categoryId });
+    current = await getSnapshot();
+    draw();
+  }
+
+  async function refresh() {
+    current = await getSnapshot();
+    draw();
+  }
+
+  root.addEventListener('click', async (event) => {
+    const actionEl = event.target.closest('[data-budget-action]');
+    if (actionEl) {
+      const action = actionEl.dataset.budgetAction;
+      const categoryId = actionEl.dataset.categoryId;
+      if (action === 'add' || action === 'edit') {
+        editing = categoryId;
+        draw();
+      } else if (action === 'cancel') {
+        editing = null;
+        draw();
+      } else if (action === 'save') {
+        const input = root.querySelector('[data-budget-input]');
+        const amount = Number(input?.value);
+        if (Number.isFinite(amount) && amount >= 0) {
+          await postBudget(categoryId, amount);
+          editing = null;
+          await refresh();
+        }
+      }
+      return;
+    }
+
+    const row = event.target.closest('[data-budget-category]');
+    if (row && !event.target.closest('[data-budget-input]')) {
+      const label = row.querySelector('td')?.textContent?.trim() ?? row.dataset.budgetCategory;
+      openDrilldown(row.dataset.budgetCategory, label);
+      draw();
+    }
+  });
+
+  if (drilldownRoot) {
+    drilldownRoot.addEventListener('click', (event) => {
+      if (event.target.closest('[data-drilldown-action="close"]')) {
+        drilldown = null;
+        draw();
+      }
+    });
+    drilldownRoot.addEventListener('change', (event) => {
+      const row = event.target.closest('[data-drilldown-id]');
+      if (!row) return;
+      if (event.target.dataset.drilldownAction === 'recategorise') {
+        reassign(row.dataset.drilldownId, event.target.value);
+      }
+    });
+  }
+
+  draw();
+  return { redraw: draw, refresh };
 }

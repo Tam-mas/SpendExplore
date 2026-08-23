@@ -2,16 +2,20 @@ import { getSnapshot } from './api.js';
 import { renderImportView } from './import-view.js';
 import { mountOverview } from './overview-view.js';
 import { mountReview } from './review-view.js';
+import { mountBudgets } from './budgets-view.js';
 
 const views = {
   overview: document.querySelector('#view-overview'),
   import: document.querySelector('#view-import'),
-  review: document.querySelector('#view-review')
+  review: document.querySelector('#view-review'),
+  budgets: document.querySelector('#view-budgets')
 };
 const drilldownRoot = document.querySelector('#drilldown');
+const budgetsDrilldownRoot = document.querySelector('#budgets-drilldown');
 
 let overview = null;
 let review = null;
+let budgets = null;
 
 async function refresh() {
   const snapshot = await getSnapshot();
@@ -19,6 +23,8 @@ async function refresh() {
   else overview = mountOverview(views.overview, { snapshot, drilldownRoot });
   if (review) await review.refresh();
   else review = mountReview(views.review, { snapshot });
+  if (budgets) await budgets.refresh();
+  else budgets = mountBudgets(views.budgets, { snapshot, drilldownRoot: budgetsDrilldownRoot });
 }
 
 function showTab(name) {

@@ -133,3 +133,13 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
 .drilldown-hide { display: flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
 .drilldown-hidden-row { opacity: .5; }
 .hidden-banner button { margin-left: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 12px; }
+
+.budgets-table .budget-unset { color: var(--viz-text-secondary); font-style: italic; }
+.budget-status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.budget-status-on-track { color: var(--viz-text-secondary); }
+.budget-status-covered { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.budget-status-over { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); font-weight: 600; }
+.budgets-table input[type="number"] { width: 100px; font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.budgets-table button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 12px; }
+.budgets-table tbody tr[data-budget-category] { cursor: pointer; }
+.budgets-table tbody tr[data-budget-category]:hover { background: var(--line); }
