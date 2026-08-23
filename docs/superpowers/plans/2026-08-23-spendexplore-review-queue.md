@@ -730,7 +730,7 @@ git commit -m "feat: add bulk categorisation endpoint for the review queue"
   - `mountReview(root, { snapshot, onChanged })`
   - `web/api.js` gains `bulkCategorise(payload)`, `patchTransaction(id, payload)`, `createCategory(payload)`
 
-`state` = `{ index, showAll, pasteError, pasteResult }`.
+`state` = `{ index, pasteError, pasteResult }`.
 
 The queue shows **one merchant at a time**, biggest decision first, with its transaction count, total, date span and a sample raw description so the user can tell what it actually was.
 

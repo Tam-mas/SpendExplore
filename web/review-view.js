@@ -152,13 +152,17 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
       }
       const queue = buildQueue(current);
       let applied = 0;
+      let skippedMerchants = 0;
       for (const { merchant, categoryId } of assignments) {
         const item = queue.items.find((i) => i.merchant === merchant);
-        if (!item) continue;
+        if (!item) { skippedMerchants++; continue; }
         await bulkCategorise({ ids: item.ids, categoryId, rememberRule: true, applyToPast: false });
         applied++;
       }
-      state = { index: 0, pasteResult: `Applied ${applied} of ${assignments.length}.${errors.length ? ' ' + errors.length + ' skipped.' : ''}` };
+      const parts = [`Applied ${applied} of ${assignments.length}.`];
+      if (skippedMerchants > 0) parts.push(`${skippedMerchants} merchant${skippedMerchants === 1 ? ' was' : 's were'} not in the queue.`);
+      if (errors.length > 0) parts.push(`${errors.length} error${errors.length === 1 ? '' : 's'}.`);
+      state = { index: 0, pasteResult: parts.join(' ') };
       await refresh();
     }
   });

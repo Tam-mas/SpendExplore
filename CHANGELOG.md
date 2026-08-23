@@ -1,10 +1,20 @@
 # Changelog
 
+### [2026-08-23 23:30] Fixed
+
+**Tech:** `server/routes/transactions.js` — fixed `notFound` count to track distinct matched ids; `tests/bulk-routes.test.js` — 2 new tests; `tests/review-view.test.js` — anchored weak assertion; `web/review-view.js` — fixed paste-apply message to count skipped merchants; `docs/superpowers/plans/2026-08-23-spendexplore-review-queue.md` — removed vestigial `showAll` field; `CHANGELOG.md` — trimmed review queue entry.
+
+**Dev:** Bulk handler's `notFound = ids.length - updated` lied when duplicates collapsed: now tracks which ids matched. Weak test matched a date's digit instead of the count; tightened to `/\b2 transactions\b/`. Paste-apply silently skipped merchants not in queue; now counts and reports them. Mounted keydown listener stacked per refresh; now mounted once, refreshed through handle.
+
+**Plain:** Fixed five issues: bulk endpoint misreporting missing ids when duplicates are passed; weak test assertion hiding missing output; paste-apply message not mentioning skipped merchants; state field documentation listing nonexistent field; and CHANGELOG entry bloated to 5 sentences.
+
+**Why:** Duplicate ids are rare but testing them matters; weak tests hide regressions; user-facing messages must match what actually happens; documentation must match code.
+
 ### [2026-08-23 17:45] Added
 
 **Tech:** `web/review-view.js` — `renderReview()`, `mountReview()`; `web/api.js` — `bulkCategorise()`, `patchTransaction()`, `createCategory()`; `tests/review-view.test.js` — 13 tests.
 
-**Dev:** Review queue renders one merchant at a time, largest decision first. Keyboard: `1`–`9` assign suggested category, `/` search, `n` new, `x` exclude, `s` skip, arrows navigate. Every assignment sends `rememberRule: true, applyToPast: false`. `mountReview()` attaches a document-level keydown listener once, not per refresh, so shortcuts fire once per key. Merchant names and raw descriptions escaped with `escapeHtml` before render.
+**Dev:** Renders one merchant at a time (biggest decision first). Keyboard: 1–9 assign, / search, n new, x exclude, s skip, arrows navigate. Every assignment sends `rememberRule: true, applyToPast: false`. `mountReview()` attaches listener once to prevent stacking during refreshes. Merchant names escaped before render.
 
 **Plain:** Built the keyboard-driven review queue UI — one merchant per card, category suggestions on number keys, Claude prompt/paste for stuck cases.
 

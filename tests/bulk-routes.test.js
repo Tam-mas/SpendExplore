@@ -140,3 +140,21 @@ test('two concurrent bulk calls both land', async () => {
     assert.ok(ledger.filter((t) => t.merchant.startsWith('Arctel')).every((t) => t.categoryId === 'internet-phone'));
   });
 });
+
+test('duplicate ids are not reported as missing', async () => {
+  await withImported(async (base, store) => {
+    const ids = await idsFor(store, 'Good Heavens');
+    const body = await (await bulk(base, { ids: [ids[0], ids[0]], categoryId: 'coffee' })).json();
+    assert.equal(body.updated, 1);
+    assert.equal(body.notFound, 0);
+  });
+});
+
+test('one real id twice plus one fake id reports only the fake as missing', async () => {
+  await withImported(async (base, store) => {
+    const ids = await idsFor(store, 'Good Heavens');
+    const body = await (await bulk(base, { ids: [ids[0], ids[0], 'deadbeefdeadbeef'], categoryId: 'coffee' })).json();
+    assert.equal(body.updated, 1);
+    assert.equal(body.notFound, 1);
+  });
+});

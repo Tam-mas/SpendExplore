@@ -217,6 +217,7 @@ export function createTransactionRoutes(store, serialized) {
 
         const ledger = await store.read('ledger');
         const wanted = new Set(ids);
+        const matched = new Set();
         const next = [...ledger];
         let updated = 0;
 
@@ -224,9 +225,10 @@ export function createTransactionRoutes(store, serialized) {
           if (!wanted.has(next[i].id)) continue;
           // An explicit selection is a hand decision, so it is 'manual'.
           next[i] = { ...next[i], categoryId, categorySource: 'manual' };
+          matched.add(next[i].id);
           updated++;
         }
-        const notFound = ids.length - updated;
+        const notFound = [...wanted].filter((id) => !matched.has(id)).length;
 
         // The merchant to group on comes from the first id that actually exists.
         const anchor = next.find((t) => wanted.has(t.id));

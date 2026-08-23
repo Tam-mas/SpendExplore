@@ -33,7 +33,7 @@ test('leads with the biggest decision', () => {
 test('shows the transaction count, total and date span for the group', () => {
   const html = renderReview(SNAPSHOT, { index: 1 });
   assert.match(html, /Good Heavens/);
-  assert.match(html, /2/);
+  assert.match(html, /\b2 transactions\b/);
   assert.match(html, /-\$54\.38/);
   assert.match(html, /2026-08-05/);
 });
