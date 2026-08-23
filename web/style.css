@@ -112,3 +112,21 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
 .review-claude button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 13px; }
 .review-error { color: var(--warn); font-size: 13px; }
 .review-ok { color: var(--viz-text-secondary); font-size: 13px; }
+
+.viz-clickable { cursor: pointer; }
+.viz-clickable:hover { opacity: .85; }
+
+.drilldown {
+  position: fixed; top: 0; right: 0; height: 100vh; width: min(420px, 100vw);
+  background: var(--viz-surface); border-left: 1px solid var(--line);
+  box-shadow: -4px 0 16px rgba(0,0,0,.12); overflow-y: auto; z-index: 20;
+  padding: 20px;
+}
+.drilldown.hidden { display: none; }
+.drilldown-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.drilldown-head h3 { margin: 0; font-size: 16px; }
+.drilldown-head button { background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--viz-text-primary); padding: 2px 8px; }
+.drilldown-table { margin-top: 12px; font-size: 12px; }
+.drilldown-table select { font: inherit; font-size: 12px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.drilldown-hide { display: flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
+.drilldown-hidden-row { opacity: .5; }
