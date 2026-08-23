@@ -45,11 +45,16 @@ export function squarify(values, width, height) {
  * Treemap — part-to-whole where area IS the magnitude.
  *
  * Tiles are adjacent arbitrarily, making this an ALL-PAIRS form: the 7
- * categorical hues fail the all-pairs CVD gate, so this chart deliberately
- * uses the sequential ramp keyed to each tile's share instead. Area and
- * colour then encode the same thing, which is correct, not redundant.
+ * categorical hues fail the all-pairs CVD gate (see palette.js). For a
+ * category or group slice — where colour genuinely identifies something —
+ * this chart accepts that trade-off and uses the same categorical hue bar
+ * and donut use for the same slice, so the treemap visually agrees with the
+ * rest of the app. Any other slice (merchant, weekday, amount band, …) has
+ * no taxonomy identity to colour by, so it keeps the sequential ramp keyed
+ * to magnitude — colour and area then encode the same thing, which is
+ * correct, not redundant.
  */
-export function renderTreemap(result, { mode = 'light', title = '' } = {}) {
+export function renderTreemap(result, { mode = 'light', title = '', colourFor } = {}) {
   const rows = [...(result.rows ?? [])].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
   if (!rows.length) return `<p class="viz-empty">No data for these filters</p>`;
 
@@ -57,10 +62,12 @@ export function renderTreemap(result, { mode = 'light', title = '' } = {}) {
   const max = Math.max(...magnitudes, 1);
   const tiles = squarify(magnitudes, WIDTH, HEIGHT);
   const measure = result.meta?.measure;
+  const sliceBy = result.meta?.sliceBy;
+  const useCategorical = Boolean(colourFor) && (sliceBy === 'category' || sliceBy === 'group');
 
   const cells = rows.map((row, i) => {
     const tile = tiles[i];
-    const colour = sequentialColour(Math.abs(row.value) / max, mode);
+    const colour = useCategorical ? colourFor(row) : sequentialColour(Math.abs(row.value) / max, mode);
     const showLabel = tile.w > 70 && tile.h > 34;
     const label = showLabel
       ? `<text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 20).toFixed(1)}" class="viz-tile-label">${escapeHtml(row.label)}</text>
@@ -68,7 +75,7 @@ export function renderTreemap(result, { mode = 'light', title = '' } = {}) {
       : '';
     return `<g>
       <rect x="${tile.x.toFixed(1)}" y="${tile.y.toFixed(1)}" width="${tile.w.toFixed(1)}" height="${tile.h.toFixed(1)}"
-            fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" rx="4"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
+            fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" rx="4" class="viz-clickable" data-slice-key="${escapeHtml(row.key)}"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
       ${label}
     </g>`;
   }).join('');

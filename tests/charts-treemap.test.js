@@ -52,12 +52,28 @@ test('treemap draws one rect per row', () => {
   assert.equal((svg.match(/<rect/g) ?? []).length, 4);
 });
 
-test('treemap uses the sequential ramp, NOT the categorical hues', () => {
+test('treemap uses the sequential ramp when no colourFor is supplied', () => {
   const svg = renderTreemap(RESULT, opts);
-  // No categorical slot hex may appear.
   for (const hex of ['#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7']) {
-    assert.doesNotMatch(svg, new RegExp(hex, 'i'), `categorical hue ${hex} must not appear in a treemap`);
+    assert.doesNotMatch(svg, new RegExp(hex, 'i'), `categorical hue ${hex} must not appear without colourFor`);
   }
+});
+
+test('treemap uses the categorical hue when colourFor is supplied for a category/group slice', () => {
+  const svg = renderTreemap(RESULT, { ...opts, colourFor: () => '#eb6834' });
+  assert.match(svg, /fill="#eb6834"/);
+});
+
+test('treemap ignores colourFor for a slice with no taxonomy identity', () => {
+  const merchantResult = { ...RESULT, meta: { ...RESULT.meta, sliceBy: 'merchant' } };
+  const svg = renderTreemap(merchantResult, { ...opts, colourFor: () => '#eb6834' });
+  assert.doesNotMatch(svg, /fill="#eb6834"/);
+});
+
+test('treemap tiles carry a slice key for drill-down clicks', () => {
+  const svg = renderTreemap(RESULT, opts);
+  assert.match(svg, /data-slice-key="a"/);
+  assert.match(svg, /class="viz-clickable"/);
 });
 
 test('treemap direct-labels every tile', () => {
