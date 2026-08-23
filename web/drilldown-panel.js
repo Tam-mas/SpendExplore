@@ -12,7 +12,7 @@ const assignableCategories = (snapshot) =>
  */
 export function renderDrilldown(snapshot, state) {
   if (!state) return '';
-  const { label, rows = [], excludedIds = new Set() } = state;
+  const { label, rows = [], excludedIds = new Set(), hideable = true } = state;
   const categories = assignableCategories(snapshot);
 
   const options = (currentId) => categories
@@ -23,22 +23,29 @@ export function renderDrilldown(snapshot, state) {
 
   const rowsHtml = sorted.map((t) => {
     const hidden = excludedIds.has(t.id);
+    const hideCell = hideable
+      ? `<td>
+          <label class="drilldown-hide">
+            <input type="checkbox" data-drilldown-action="toggle-hide" ${hidden ? 'checked' : ''}>
+            Hide
+          </label>
+        </td>`
+      : '';
     return `
     <tr class="${hidden ? 'drilldown-hidden-row' : ''}" data-drilldown-id="${escapeHtml(t.id)}">
       <td>${escapeHtml(t.date)}</td>
       <td>${escapeHtml(t.merchant)}</td>
       <td class="num">${formatMoney(t.amount)}</td>
       <td><select data-drilldown-action="recategorise">${options(t.categoryId)}</select></td>
-      <td>
-        <label class="drilldown-hide">
-          <input type="checkbox" data-drilldown-action="toggle-hide" ${hidden ? 'checked' : ''}>
-          Hide
-        </label>
-      </td>
+      ${hideCell}
     </tr>`;
   }).join('');
 
   const total = rows.filter((t) => !excludedIds.has(t.id)).reduce((a, t) => a + t.amount, 0);
+  const hideNote = hideable
+    ? `<p class="viz-note">Hiding a transaction removes it from the charts for this session only — it resets when you reload the page. To exclude one permanently, use the Review tab.</p>`
+    : '';
+  const hideHeader = hideable ? '<th></th>' : '';
 
   return `
   <div class="drilldown-panel">
@@ -47,9 +54,9 @@ export function renderDrilldown(snapshot, state) {
       <button data-drilldown-action="close" aria-label="Close">✕</button>
     </header>
     <p class="viz-note">${rows.length} transaction${rows.length === 1 ? '' : 's'} · ${formatMoney(total)}</p>
-    <p class="viz-note">Hiding a transaction removes it from the charts for this session only — it resets when you reload the page. To exclude one permanently, use the Review tab.</p>
+    ${hideNote}
     <table class="viz-table drilldown-table">
-      <thead><tr><th>Date</th><th>Merchant</th><th class="num">Amount</th><th>Category</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Merchant</th><th class="num">Amount</th><th>Category</th>${hideHeader}</tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
   </div>`;

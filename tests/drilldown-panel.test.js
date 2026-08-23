@@ -83,3 +83,16 @@ test('references no external host', () => {
   const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set() });
   assert.doesNotMatch(html, /https?:\/\/(?!127\.0\.0\.1|localhost)/);
 });
+
+test('hideable defaults to true — existing callers keep the hide column', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set() });
+  assert.match(html, /toggle-hide/);
+  assert.match(html, /this session/i);
+});
+
+test('hideable: false omits the hide column and its note entirely, but keeps re-categorise', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set(), hideable: false });
+  assert.doesNotMatch(html, /toggle-hide/);
+  assert.doesNotMatch(html, /this session/i);
+  assert.match(html, /data-drilldown-action="recategorise"/);
+});
