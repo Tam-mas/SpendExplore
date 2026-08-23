@@ -58,7 +58,7 @@
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `npm test` runs `node --test tests/`; `npm start` runs `server/index.js`
+- Produces: `npm test` runs `node --test 'tests/**/*.test.js'`; `npm start` runs `server/index.js`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -72,7 +72,7 @@ import { readFile } from 'node:fs/promises';
 test('package.json declares ES modules', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.type, 'module');
-  assert.equal(pkg.scripts.test, 'node --test tests/');
+  assert.equal(pkg.scripts.test, "node --test 'tests/**/*.test.js'");
 });
 ```
 
@@ -93,7 +93,7 @@ Create `package.json`:
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test 'tests/**/*.test.js'",
     "start": "node server/index.js"
   }
 }
@@ -195,10 +195,16 @@ Create `lib/csv-parse.js`:
 ```js
 /**
  * Parse CSV text into rows of raw string fields.
- * Handles quoted fields, embedded commas and newlines, escaped quotes ("")
- * and both LF and CRLF line endings. Does not interpret headers or types.
+ * Handles quoted fields, embedded commas and newlines, escaped quotes (""),
+ * a leading UTF-8 BOM, and both LF and CRLF line endings. A bare quote
+ * mid-field is literal. Lone-CR (classic Mac) endings are NOT supported.
+ * Does not interpret headers or types.
  */
 export function parseCsv(text) {
+  // Excel-exported bank CSVs commonly carry a UTF-8 BOM; left in place it
+  // would make the first header cell "\ufeffDate" and break column detection.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
   const rows = [];
   let row = [];
   let field = '';
@@ -218,12 +224,20 @@ export function parseCsv(text) {
       continue;
     }
 
-    if (ch === '"') { inQuotes = true; seenAnyChar = true; continue; }
+    // Only a quote at the START of a field opens a quoted field. A bare quote
+    // mid-field is literal data (Excel's behaviour) — treating it as an opener
+    // would swallow the next delimiter and silently drop a column.
+    if (ch === '"') {
+      seenAnyChar = true;
+      if (field === '') { inQuotes = true; continue; }
+      field += ch;
+      continue;
+    }
     if (ch === ',') { row.push(field); field = ''; seenAnyChar = true; continue; }
     if (ch === '\r') continue;
     if (ch === '\n') {
       row.push(field);
-      if (seenAnyChar || row.some((f) => f !== '')) rows.push(row);
+      if (seenAnyChar) rows.push(row);
       row = []; field = ''; seenAnyChar = false;
       continue;
     }
@@ -232,7 +246,7 @@ export function parseCsv(text) {
   }
 
   row.push(field);
-  if (seenAnyChar || row.some((f) => f !== '')) rows.push(row);
+  if (seenAnyChar) rows.push(row);
   return rows;
 }
 ```
@@ -820,8 +834,11 @@ Create `lib/dedupe-hash.js`:
 ```js
 import { createHash } from 'node:crypto';
 
+// Separator between joined key fields.
+const FIELD_SEP = '\u241f';
+
 const groupKey = (row) =>
-  [row.accountId, row.date, row.amount.toFixed(2), row.rawDescription].join(' ');
+  [row.accountId, row.date, row.amount.toFixed(2), row.rawDescription].join(FIELD_SEP);
 
 /**
  * Stable id for a transaction. Identical input always yields the same id, so
@@ -829,7 +846,7 @@ const groupKey = (row) =>
  */
 export function transactionId({ accountId, date, amount, rawDescription, occurrenceIndex }) {
   const key = [accountId, date, Number(amount).toFixed(2), rawDescription, occurrenceIndex]
-    .join(' ');
+    .join(FIELD_SEP);
   return createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16);
 }
 

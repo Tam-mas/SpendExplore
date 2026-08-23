@@ -1,6 +1,8 @@
 node_modules/
 .superpowers/
-data/
+data/*
 !data/.gitkeep
+!data/seed/
 .DS_Store
 *.log
+data/backups/
