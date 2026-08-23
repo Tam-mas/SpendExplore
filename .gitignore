@@ -1,8 +1,21 @@
 node_modules/
-.superpowers/
+
+# --- Your financial data. Never commit any of this. ---
+# Everything under data/ is ignored except the seed taxonomy and rules,
+# which contain no personal information.
 data/*
 !data/.gitkeep
 !data/seed/
+data/backups/
+
+# Bank exports, wherever they land
+*.csv
+!tests/fixtures/*.csv
+*.ofx
+*.qif
+
+# Agent scratch
+.superpowers/
+
 .DS_Store
 *.log
-data/backups/
