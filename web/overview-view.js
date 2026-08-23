@@ -64,6 +64,9 @@ import { createPanel, mount } from './panel.js';
 import { renderFilterBar, mountFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
 import { query } from '../lib/query/query.js';
 import { escapeHtml as escapeHtmlFromScale, formatMoney } from './charts/scale.js';
+import { transactionsForSlice } from '../lib/query/slice-transactions.js';
+import { renderDrilldown } from './drilldown-panel.js';
+import { patchTransaction, getSnapshot } from './api.js';
 
 const STORAGE_KEY = 'spendexplore.overview.panels';
 
@@ -110,11 +113,11 @@ function kpiRow(snapshot, globalFilters) {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS) {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}) {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
-  const queryFilters = toQueryFilters(uiFilters);
+  const queryFilters = { ...toQueryFilters(uiFilters), ...extraFilters };
   const panels = panelConfigs
     .map((config) => createPanel(config).html(snapshot, queryFilters))
     .join('');
@@ -126,14 +129,72 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
 }
 
 /** Wire the Overview into a live DOM node. */
-export function mountOverview(root, { snapshot } = {}) {
+export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
+  let current = snapshot;
   let filters = {};
   let configs = loadPanelConfigs();
+  const excludedIds = new Set();
+  let drilldown = null; // { sliceBy, key, label, rows, panelFilters } | null
+
+  const extraFilters = () => (excludedIds.size ? { excludeIds: [...excludedIds] } : {});
 
   const draw = () => {
-    root.innerHTML = renderOverview(snapshot, filters, configs);
+    root.innerHTML = renderOverview(current, filters, configs, extraFilters());
+    if (drilldownRoot) {
+      drilldownRoot.innerHTML = renderDrilldown(current, drilldown && { ...drilldown, excludedIds });
+      drilldownRoot.classList.toggle('hidden', !drilldown);
+    }
   };
+
+  const fetchSlice = (sliceBy, panelFilters, key) => {
+    const base = toQueryFilters(filters);
+    const spec = { filters: { ...base, ...panelFilters }, sliceBy };
+    return transactionsForSlice(current, spec, key);
+  };
+
+  function openDrilldown(config, key) {
+    const bucket = fetchSlice(config.sliceBy, config.filters, key);
+    drilldown = bucket ? { sliceBy: config.sliceBy, key, label: bucket.label, rows: bucket.rows, panelFilters: config.filters } : null;
+    draw();
+  }
+
+  function closeDrilldown() {
+    drilldown = null;
+    draw();
+  }
+
+  function toggleHidden(id) {
+    if (excludedIds.has(id)) excludedIds.delete(id); else excludedIds.add(id);
+    draw();
+  }
+
+  async function reassign(id, categoryId) {
+    await patchTransaction(id, { categoryId });
+    current = await getSnapshot();
+    if (drilldown) {
+      const bucket = fetchSlice(drilldown.sliceBy, drilldown.panelFilters, drilldown.key);
+      drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
+    }
+    draw();
+  }
+
+  const refresh = async () => {
+    current = await getSnapshot();
+    drilldown = null;
+    draw();
+  };
+
   draw();
+
+  root.addEventListener('click', (event) => {
+    const mark = event.target.closest('[data-slice-key]');
+    if (mark) {
+      const panelId = mark.closest('[data-panel-id]')?.dataset.panelId;
+      const config = configs.find((c) => c.id === panelId);
+      if (config) openDrilldown(config, mark.dataset.sliceKey);
+      return;
+    }
+  });
 
   root.addEventListener('change', (event) => {
     const target = event.target;
@@ -158,6 +219,22 @@ export function mountOverview(root, { snapshot } = {}) {
     savePanelConfigs(configs);
     draw();
   });
+
+  if (drilldownRoot) {
+    drilldownRoot.addEventListener('click', (event) => {
+      if (event.target.closest('[data-drilldown-action="close"]')) closeDrilldown();
+    });
+    drilldownRoot.addEventListener('change', (event) => {
+      const row = event.target.closest('[data-drilldown-id]');
+      if (!row) return;
+      const id = row.dataset.drilldownId;
+      const action = event.target.dataset.drilldownAction;
+      if (action === 'recategorise') reassign(id, event.target.value);
+      else if (action === 'toggle-hide') toggleHidden(id);
+    });
+  }
+
+  return { redraw: draw, refresh };
 }
 
 export function renderOverviewView(root, snapshot) {

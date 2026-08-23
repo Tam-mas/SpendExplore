@@ -6,14 +6,17 @@ import { mountReview } from './review-view.js';
 const views = {
   overview: document.querySelector('#view-overview'),
   import: document.querySelector('#view-import'),
-  review: document.querySelector('#view-review')
+  review: document.querySelector('#view-review'),
+  drilldown: document.querySelector('#drilldown')
 };
 
+let overview = null;
 let review = null;
 
 async function refresh() {
   const snapshot = await getSnapshot();
-  mountOverview(views.overview, { snapshot });
+  if (overview) await overview.refresh();
+  else overview = mountOverview(views.overview, { snapshot, drilldownRoot: views.drilldown });
   if (review) await review.refresh();
   else review = mountReview(views.review, { snapshot });
 }

@@ -69,3 +69,9 @@ test('aggregateOverview is still exported for Plan 1 compatibility', () => {
 test('renderOverview references no external host', () => {
   assert.doesNotMatch(renderOverview(SNAPSHOT, {}), /https?:\/\/(?!127\.0\.0\.1|localhost)/);
 });
+
+test('extra filters (e.g. a session-only exclude) merge into every panel and the KPI row', () => {
+  const html = renderOverview(SNAPSHOT, {}, DEFAULT_PANELS, { excludeIds: ['b'] });
+  assert.match(html, /-\$100\.00/);
+  assert.doesNotMatch(html, /-\$300\.00/);
+});
