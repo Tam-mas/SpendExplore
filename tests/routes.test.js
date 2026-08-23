@@ -162,6 +162,62 @@ test('a "dot dot slash slash" bypass attempt does not escape web/', async () => 
   });
 });
 
+// --- /lib/ static root: same boundary check, same trap, mirrored tests ---
+
+test('refuses several encodings of path traversal under /lib/, and never leaks file content', async () => {
+  await withServer(async (base) => {
+    const attempts = [
+      // %2f survives URL parsing intact; after our decode this is a genuine
+      // "../server/store.js" relative to lib/, which reaches the boundary
+      // check in serveStatic.
+      '/lib/..%2fserver/store.js',
+      '/lib/..%2f..%2fserver/store.js',
+      '/%2e%2e%2flib%2f..%2fserver%2fstore.js',
+    ];
+    for (const path of attempts) {
+      const res = await fetch(`${base}${path}`, { redirect: 'manual' });
+      assert.ok([400, 404].includes(res.status), `${path} => unexpected status ${res.status}`);
+      const text = await res.text();
+      assert.doesNotMatch(text, /createStore/, `${path} leaked store.js source into the response body`);
+    }
+  });
+});
+
+test('a sibling directory sharing the "lib" prefix cannot be escaped into', async () => {
+  // Regression test for the classic startsWith(prefix) trap applied to the
+  // new root: a naive check like target.startsWith(LIB_DIR) is fooled by a
+  // sibling directory whose name happens to start with the same characters,
+  // e.g. "lib-evil" starts with "lib". Create such a sibling next to the
+  // real lib/ dir and confirm several encodings are all refused.
+  const evilDir = join(PROJECT_ROOT, 'lib-evil');
+  await mkdir(evilDir, { recursive: true });
+  await writeFile(join(evilDir, 'secret.txt'), 'TOP SECRET LIB SIBLING CONTENT');
+  try {
+    await withServer(async (base) => {
+      const attempts = [
+        // A direct request under the wrong prefix never even matches the
+        // /lib/ branch (isLib requires an exact "/lib" or "/lib/" prefix,
+        // not a bare "/lib" string match), so it falls through to the web/
+        // root and 404s there — ordinary 404, not boundary-check coverage.
+        '/lib-evil/secret.txt',
+        // %2f survives URL parsing intact; after decode this is a genuine
+        // "../lib-evil/secret.txt" relative to lib/, which reaches the
+        // boundary check.
+        '/lib/..%2flib-evil/secret.txt',
+        '/lib/..%2f..%2flib-evil/secret.txt',
+      ];
+      for (const path of attempts) {
+        const res = await fetch(`${base}${path}`, { redirect: 'manual' });
+        assert.ok([400, 404].includes(res.status), `${path} => unexpected status ${res.status}`);
+        const text = await res.text();
+        assert.doesNotMatch(text, /TOP SECRET LIB SIBLING CONTENT/, `${path} leaked the sibling file`);
+      }
+    });
+  } finally {
+    await rm(evilDir, { recursive: true, force: true });
+  }
+});
+
 test('readBody rejects a body over the size cap instead of buffering it', async () => {
   const fakeReq = new EventEmitter();
   fakeReq.destroy = () => { fakeReq.destroyed = true; };

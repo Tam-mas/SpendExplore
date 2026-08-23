@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 10:40] Fixed
+
+**Tech:** `server/static.js` — added `LIB_DIR`, factored the boundary check into `resolveWithinRoot()`, `serveStatic()` now routes `/lib/*` to `lib/` and everything else to `web/`; new `tests/module-graph.test.js`; two new traversal tests in `tests/routes.test.js`
+
+**Dev:** `web/panel.js` and `web/overview-view.js` import `../lib/query/query.js`, which resolves to `/lib/query/query.js` in a browser, but `serveStatic` only ever served from `web/`. The 404 broke the whole ES module graph, so Overview rendered blank. Both static roots now share one `resolveWithinRoot()` boundary check (`target === root || target.startsWith(root + sep)`) so `/lib/` gets the same anti-traversal guarantee `web/` already had, not a second hand-rolled copy.
+
+**Plain:** Fixed the Overview page rendering completely blank because the browser couldn't load a file the page depended on.
+
+**Why:** All 368 tests were green while the actual app was broken in a browser, because Node tests import files straight off disk and never notice an HTTP 404. Added a test that walks the real module graph over HTTP so this class of bug gets caught next time, not just this one file.
+
 ### [2026-08-23 10:35] Added
 
 **Tech:** `web/overview-view.js` — `DEFAULT_PANELS`, `renderOverview()`, `mountOverview()`; `web/app.js` — switched to `mountOverview`; appended to `web/style.css`; new file `tests/overview-panels.test.js`
