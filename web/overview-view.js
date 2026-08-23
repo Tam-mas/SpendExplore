@@ -65,6 +65,7 @@ import { renderFilterBar, mountFilterBar, toQueryFilters, readFilterBar } from '
 import { query } from '../lib/query/query.js';
 import { escapeHtml as escapeHtmlFromScale, formatMoney } from './charts/scale.js';
 import { transactionsForSlice } from '../lib/query/slice-transactions.js';
+import { searchTransactions } from '../lib/query/search-transactions.js';
 import { renderDrilldown } from './drilldown-panel.js';
 import { patchTransaction, getSnapshot } from './api.js';
 
@@ -93,6 +94,13 @@ function savePanelConfigs(configs) {
   } catch { /* storage unavailable — panel state simply does not persist */ }
 }
 
+function searchBox(query = '') {
+  return `
+  <div class="viz-search">
+    <input type="search" data-search placeholder="Search transactions (e.g. chem)" value="${escapeHtmlFromScale(query)}" aria-label="Search transactions">
+  </div>`;
+}
+
 function kpiRow(snapshot, globalFilters) {
   const result = query(snapshot, { filters: globalFilters, sliceBy: 'category', measure: 'sum' });
   const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown').length;
@@ -113,7 +121,7 @@ function kpiRow(snapshot, globalFilters) {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0) {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '') {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
@@ -128,6 +136,7 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
   return `
     ${kpiRow(snapshot, queryFilters)}
     ${hiddenBanner}
+    ${searchBox(searchQuery)}
     ${renderFilterBar(snapshot, uiFilters)}
     ${panels}`;
 }
@@ -138,40 +147,48 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   let filters = {};
   let configs = loadPanelConfigs();
   const excludedIds = new Set();
-  let drilldown = null; // { sliceBy, key, label, rows, panelFilters } | null
+  let drilldown = null; // { label, rows, refetch } | null
+  let searchQuery = '';
 
   const extraFilters = () => (excludedIds.size ? { excludeIds: [...excludedIds] } : {});
 
-  const draw = () => {
-    // Re-derive the open drill-down's rows every time, from the CURRENT
-    // filters/snapshot — a filter-bar change or a panel's own slice change
-    // while a drill-down is open must not leave it showing a stale slice
-    // that no longer matches what the charts behind it show.
+  /**
+   * Re-render just the slide-over panel, re-deriving its rows from `refetch`
+   * every time — a filter-bar change, a panel's own slice change, or a
+   * re-categorise while it's open must not leave it showing a stale slice
+   * that no longer matches what the charts (or the search box) show.
+   */
+  const drawDrilldown = () => {
     if (drilldown) {
-      const bucket = fetchSlice(drilldown.sliceBy, drilldown.panelFilters, drilldown.key);
+      const bucket = drilldown.refetch();
       drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
     }
-    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size);
     if (drilldownRoot) {
       drilldownRoot.innerHTML = renderDrilldown(current, drilldown && { ...drilldown, excludedIds });
       drilldownRoot.classList.toggle('hidden', !drilldown);
     }
   };
 
-  const fetchSlice = (sliceBy, panelFilters, key) => {
-    const base = toQueryFilters(filters);
-    const spec = { filters: { ...base, ...panelFilters }, sliceBy };
-    return transactionsForSlice(current, spec, key);
+  const draw = () => {
+    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size, searchQuery);
+    drawDrilldown();
   };
 
   function openDrilldown(config, key) {
-    const bucket = fetchSlice(config.sliceBy, config.filters, key);
-    drilldown = bucket ? { sliceBy: config.sliceBy, key, label: bucket.label, rows: bucket.rows, panelFilters: config.filters } : null;
+    const doFetch = () => {
+      const base = toQueryFilters(filters);
+      const spec = { filters: { ...base, ...config.filters }, sliceBy: config.sliceBy };
+      return transactionsForSlice(current, spec, key);
+    };
+    const bucket = doFetch();
+    drilldown = bucket ? { label: bucket.label, rows: bucket.rows, refetch: doFetch } : null;
+    searchQuery = '';
     draw();
   }
 
   function closeDrilldown() {
     drilldown = null;
+    searchQuery = '';
     draw();
   }
 
@@ -186,9 +203,32 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     draw();
   }
 
+  /**
+   * Live-as-you-type search. This deliberately redraws ONLY the drill-down
+   * panel, not `root` — root's markup (including the search `<input>` itself)
+   * gets replaced wholesale on every `draw()`, which would recreate the input
+   * and drop focus/cursor position after every keystroke.
+   */
+  function runSearch(term) {
+    searchQuery = term;
+    const trimmed = term.trim();
+    if (!trimmed) {
+      drilldown = null;
+      drawDrilldown();
+      return;
+    }
+    const doFetch = () => ({
+      label: `Search: "${trimmed}"`,
+      rows: searchTransactions(current, { filters: toQueryFilters(filters) }, trimmed)
+    });
+    drilldown = { ...doFetch(), refetch: doFetch };
+    drawDrilldown();
+  }
+
   const refresh = async () => {
     current = await getSnapshot();
     drilldown = null;
+    searchQuery = '';
     draw();
   };
 
@@ -207,6 +247,11 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
       if (config) openDrilldown(config, mark.dataset.sliceKey);
       return;
     }
+  });
+
+  root.addEventListener('input', (event) => {
+    if (!event.target.matches?.('[data-search]')) return;
+    runSearch(event.target.value);
   });
 
   root.addEventListener('change', (event) => {

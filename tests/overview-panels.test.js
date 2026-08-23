@@ -86,3 +86,19 @@ test('no hidden-count banner when nothing is hidden', () => {
   const html = renderOverview(SNAPSHOT, {});
   assert.doesNotMatch(html, /hidden this session/);
 });
+
+test('renderOverview shows a search box with the given query pre-filled', () => {
+  const html = renderOverview(SNAPSHOT, {}, DEFAULT_PANELS, {}, 0, 'chem');
+  assert.match(html, /data-search/);
+  assert.match(html, /value="chem"/);
+});
+
+test('renderOverview escapes the search query', () => {
+  const html = renderOverview(SNAPSHOT, {}, DEFAULT_PANELS, {}, 0, '"><script>x</script>');
+  assert.doesNotMatch(html, /<script>x<\/script>/);
+});
+
+test('the search box is empty by default', () => {
+  const html = renderOverview(SNAPSHOT, {});
+  assert.match(html, /data-search[^>]*value=""/);
+});
