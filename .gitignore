@@ -8,6 +8,9 @@ data/*
 !data/seed/
 data/backups/
 
+# Isolated data directory for `npm run start:test` — never the real ledger.
+data-test/
+
 # Bank exports, wherever they land
 *.csv
 !tests/fixtures/*.csv

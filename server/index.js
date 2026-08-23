@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { resolve } from 'node:path';
 import { createStore } from './store.js';
 import { createRouter } from './routes.js';
 import { serveStatic } from './static.js';
@@ -50,6 +51,12 @@ export async function startServer({ port = 5173, dataDir } = {}) {
 
 // Only auto-start when run directly, so tests can import it without starting a listener.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const app = await startServer({ port: Number(process.env.PORT) || 5173 });
-  console.log(`SpendExplore running at http://${HOST}:${app.port}`);
+  // DATA_DIR lets a live-testing session point at an isolated directory
+  // instead of the real data/ — e.g. `DATA_DIR=./data-test npm run start:test`
+  // (see package.json). This exists because a subagent once found real CSVs
+  // sitting in a Downloads folder during live browser testing and imported
+  // them into the real ledger. Never test against the real data/ directory.
+  const dataDir = process.env.DATA_DIR ? resolve(process.env.DATA_DIR) : undefined;
+  const app = await startServer({ port: Number(process.env.PORT) || 5173, dataDir });
+  console.log(`SpendExplore running at http://${HOST}:${app.port}${dataDir ? ` (data: ${dataDir})` : ''}`);
 }
