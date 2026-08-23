@@ -103,3 +103,19 @@ test('does not mutate the input array or its rows', () => {
 test('an unknown category id matches nothing rather than throwing', () => {
   assert.equal(applyFilters(ROWS, { categoryIds: ['nope'] }, ctx).length, 0);
 });
+
+test('excludeIds drops specific rows regardless of their other fields', () => {
+  assert.equal(ids(applyFilters(ROWS, { excludeIds: ['a', 'c'] }, ctx)), 'bf');
+});
+
+test('an empty excludeIds means no constraint, not match-nothing', () => {
+  assert.equal(ids(applyFilters(ROWS, { excludeIds: [] }, ctx)), 'abcf');
+});
+
+test('excludeIds is independent of the ledger own excluded field', () => {
+  // row e already has excluded:true and is already dropped by default; excludeIds
+  // hiding row a on top of that must not need includeExcluded to reveal e.
+  const result = applyFilters(ROWS, { excludeIds: ['a'] }, ctx);
+  assert.ok(!result.some((r) => r.id === 'a'));
+  assert.ok(!result.some((r) => r.id === 'e'));
+});
