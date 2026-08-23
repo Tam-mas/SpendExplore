@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 10:40] Added
+
+**Tech:** `lib/review.js` — `buildQueue()`, `suggestCategories()`, `promptForClaude()`, `parseClaudeResponse()`. `tests/review.test.js` — 20 comprehensive tests covering grouping, ranking, validation, and Claude integration.
+
+**Dev:** `buildQueue()` groups uncategorised transactions by merchant and ranks by absolute spend. `suggestCategories()` ranks categories: hand-picked first, then by frequency, then taxonomy order, capped at 9. `promptForClaude()` builds a merchant/category listing for pasting into Claude (no amounts/dates). `parseClaudeResponse()` extracts and validates JSON, rejects hallucinated categories, skips bad entries individually.
+
+**Plain:** Built the review queue model that turns 10 uncategorised rows into 7 merchant-grouped decisions, with ranked category suggestions and safe Claude integration.
+
+**Why:** Users group related decisions by merchant (three coffees from one shop = one decision). Suggestion ranking puts hand-chosen categories first so they're easily accessible. Validation ensures no hallucinated categories write to the ledger. Step 5: real ledger has exactly 10 rows across 7 merchants as expected.
+
 ### [2026-08-23 11:20] Fixed
 
 **Tech:** `web/charts/scale.js` — added `formatMeasure(value, measure)`; `web/charts/chart-bar.js`, `chart-table.js`, `chart-donut.js`, `chart-line.js`, `chart-treemap.js` now call it instead of `formatMoney` for row/total values; new tests in `tests/charts-bar.test.js`.
