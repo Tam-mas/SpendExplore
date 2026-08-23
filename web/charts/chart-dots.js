@@ -47,7 +47,7 @@ export function renderDots(result, { mode = 'light', title = '', points = [], co
   }).join('');
 
   // Selective direct label: the single largest value only.
-  const maxIndex = magnitudes.indexOf(max);
+  const maxIndex = magnitudes.includes(max) ? magnitudes.indexOf(max) : 0;
   const maxX = PAD.left + scale(max);
   const outlier = `<text x="${maxX.toFixed(1)}" y="${(baseline - 26).toFixed(1)}" text-anchor="end" class="viz-value">${formatMoney(points[maxIndex].amount)}</text>`;
 

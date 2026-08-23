@@ -31,10 +31,23 @@ export function renderReview(snapshot, state = {}) {
   const merchant = order[index];
   const item = merchant ? itemForMerchant(snapshot, merchant) : null;
 
-  if (!order.length || !item) {
+  if (!order.length) {
     return `<div class="review-done">
       <h2>All caught up</h2>
       <p class="viz-note">Nothing to review — every transaction has a category.</p>
+    </div>`;
+  }
+
+  if (!item) {
+    // Every transaction for this merchant was excluded — nothing to show,
+    // but Back/Next must still work so the user isn't stranded here.
+    return `<div class="review">
+      <header class="review-head">
+        <button class="review-nav" data-review-action="prev" ${index === 0 ? 'disabled' : ''} aria-label="Back">‹ Back</button>
+        <span class="viz-note">${index + 1} of ${order.length}</span>
+        <button class="review-nav" data-review-action="next" ${index === order.length - 1 ? 'disabled' : ''} aria-label="Next">Next ›</button>
+      </header>
+      <p class="viz-note">This merchant was excluded — nothing left to show here.</p>
     </div>`;
   }
 
@@ -212,18 +225,21 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
     const tag = event.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+    // Navigation must work even when the current slot has nothing left to
+    // show (every transaction for that merchant got excluded) — otherwise
+    // the user is stranded with no way to move off it.
+    if (event.key === 'ArrowRight' || event.key === 's') { advance(); draw(); return; }
+    if (event.key === 'ArrowLeft') { state.index = Math.max(0, state.index - 1); draw(); return; }
+
     const item = currentItem();
     if (!item) return;
 
     if (/^[1-9]$/.test(event.key)) {
       const id = item.suggestions[Number(event.key) - 1];
       if (id) { event.preventDefault(); assign(id); }
-    } else if (event.key === 's') { advance(); draw(); }
-    else if (event.key === 'x') { excludeGroup(); }
+    } else if (event.key === 'x') { excludeGroup(); }
     else if (event.key === 'n') { root.querySelector('[data-review-action="new-category"]')?.click(); }
     else if (event.key === '/') { event.preventDefault(); root.querySelector('[data-review-action="search"]')?.focus(); }
-    else if (event.key === 'ArrowRight') { advance(); draw(); }
-    else if (event.key === 'ArrowLeft') { state.index = Math.max(0, state.index - 1); draw(); }
   };
   document.addEventListener('keydown', onKey);
 

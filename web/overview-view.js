@@ -113,7 +113,7 @@ function kpiRow(snapshot, globalFilters) {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}) {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0) {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
@@ -121,9 +121,13 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
   const panels = panelConfigs
     .map((config) => createPanel(config).html(snapshot, queryFilters))
     .join('');
+  const hiddenBanner = hiddenCount > 0
+    ? `<p class="viz-note hidden-banner">${hiddenCount} transaction${hiddenCount === 1 ? '' : 's'} hidden this session · <button data-overview-action="show-all">Show all</button></p>`
+    : '';
 
   return `
     ${kpiRow(snapshot, queryFilters)}
+    ${hiddenBanner}
     ${renderFilterBar(snapshot, uiFilters)}
     ${panels}`;
 }
@@ -139,7 +143,15 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   const extraFilters = () => (excludedIds.size ? { excludeIds: [...excludedIds] } : {});
 
   const draw = () => {
-    root.innerHTML = renderOverview(current, filters, configs, extraFilters());
+    // Re-derive the open drill-down's rows every time, from the CURRENT
+    // filters/snapshot — a filter-bar change or a panel's own slice change
+    // while a drill-down is open must not leave it showing a stale slice
+    // that no longer matches what the charts behind it show.
+    if (drilldown) {
+      const bucket = fetchSlice(drilldown.sliceBy, drilldown.panelFilters, drilldown.key);
+      drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
+    }
+    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size);
     if (drilldownRoot) {
       drilldownRoot.innerHTML = renderDrilldown(current, drilldown && { ...drilldown, excludedIds });
       drilldownRoot.classList.toggle('hidden', !drilldown);
@@ -171,10 +183,6 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   async function reassign(id, categoryId) {
     await patchTransaction(id, { categoryId });
     current = await getSnapshot();
-    if (drilldown) {
-      const bucket = fetchSlice(drilldown.sliceBy, drilldown.panelFilters, drilldown.key);
-      drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
-    }
     draw();
   }
 
@@ -187,6 +195,11 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   draw();
 
   root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-overview-action="show-all"]')) {
+      excludedIds.clear();
+      draw();
+      return;
+    }
     const mark = event.target.closest('[data-slice-key]');
     if (mark) {
       const panelId = mark.closest('[data-panel-id]')?.dataset.panelId;

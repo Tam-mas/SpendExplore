@@ -75,3 +75,14 @@ test('extra filters (e.g. a session-only exclude) merge into every panel and the
   assert.match(html, /-\$100\.00/);
   assert.doesNotMatch(html, /-\$300\.00/);
 });
+
+test('a hidden-count banner appears with a Show all control when something is hidden this session', () => {
+  const html = renderOverview(SNAPSHOT, {}, DEFAULT_PANELS, { excludeIds: ['b'] }, 1);
+  assert.match(html, /1 transaction hidden this session/);
+  assert.match(html, /data-overview-action="show-all"/);
+});
+
+test('no hidden-count banner when nothing is hidden', () => {
+  const html = renderOverview(SNAPSHOT, {});
+  assert.doesNotMatch(html, /hidden this session/);
+});

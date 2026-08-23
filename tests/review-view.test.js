@@ -134,3 +134,14 @@ test('a fully resolved session still lets you page back through it, not "all cau
   assert.doesNotMatch(html, /all caught up/i);
   assert.match(html, /Arctel/);
 });
+
+test('a merchant fully excluded this session still shows nav, not a dead end', () => {
+  const excluded = {
+    ...SNAPSHOT,
+    transactions: SNAPSHOT.transactions.map((t) => t.merchant === 'Arctel' ? { ...t, excluded: true } : t)
+  };
+  const html = renderReview(excluded, { index: 0, order: ['Arctel', 'Good Heavens'] });
+  assert.doesNotMatch(html, /all caught up/i);
+  assert.match(html, /data-review-action="prev"/);
+  assert.match(html, /data-review-action="next"/);
+});

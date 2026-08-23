@@ -131,6 +131,11 @@ test('dot plot with no points renders a message', () => {
   assert.match(renderDots(RESULT, { ...opts, points: [] }), /No data/);
 });
 
+test('dot plot does not crash when every amount is under $1', () => {
+  const svg = renderDots(RESULT, { ...opts, points: [{ amount: 0.5, key: 'coffee', label: 'Small Spend' }] });
+  assert.match(svg, /<circle/);
+});
+
 test('no treemap or dot output references an external host', () => {
   const markup = renderTreemap(RESULT, opts) + renderDots(RESULT, { ...opts, points: dotPoints([-1]) });
   assert.doesNotMatch(markup, /https?:\/\/(?!127\.0\.0\.1|localhost)/);
