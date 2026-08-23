@@ -120,9 +120,28 @@ A transaction you edited by hand is marked `manual` and is **never** overwritten
 
 ---
 
-## Needs review — tagging transactions today
+## Needs review — clearing the pile
 
-> **Status: the review-queue UI is not built yet.** The Overview shows a "Needs review" count, but the keyboard triage screen and the copy-paste-to-Claude round trip are still to come. Until then, you can do everything through the API.
+Open the **Review** tab. Uncategorised transactions are **grouped by merchant**, so three coffees from the same shop are one decision, not three, and the biggest decision comes first.
+
+| Key | Action |
+|---|---|
+| `1`–`9` | Assign one of the suggested categories to the whole group |
+| `/` | Jump to the full category list |
+| `n` | Create a new category and assign it |
+| `x` | Exclude the whole group from spend analysis |
+| `s` | Skip for now |
+| `←` `→` | Move between merchants |
+
+Assigning **saves a rule**, so next month that merchant arrives already categorised. It does **not** touch your past transactions — history is never rewritten silently.
+
+### Stuck on a merchant? Ask Claude
+
+Under **Stuck? Ask Claude**, the copy button puts a ready-made prompt on your clipboard containing **merchant names only** — no amounts, no dates, no account details. Paste it into a Claude conversation, then paste the JSON reply back into the box and hit Apply.
+
+Every category id in the reply is checked against your real taxonomy first. A category that doesn't exist is reported and skipped, never written. Nonsense text gets a readable error and changes nothing.
+
+### Or do it from the command line
 
 The server is running on `127.0.0.1:5173`. All of these are plain HTTP.
 
@@ -373,8 +392,6 @@ Coverage is deliberately weighted toward the layers where a bug **silently corru
 
 Being honest about where this stops:
 
-- **The review queue.** The Overview counts what needs review; there's no screen to work through it. Use the [API workaround](#needs-review--tagging-transactions-today) meanwhile.
-- **Copy-paste AI categorisation.** The one-click "copy unknown merchants for Claude" round trip.
 - **Trends, Merchants, Recurring and Compare tabs**, including subscription detection with annualised costs.
 - **Saved named views** and adding/removing/reordering panels.
 - **Budgets** — simple per-category monthly targets.
