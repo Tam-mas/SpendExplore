@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 17:45] Added
+
+**Tech:** `web/review-view.js` — `renderReview()`, `mountReview()`; `web/api.js` — `bulkCategorise()`, `patchTransaction()`, `createCategory()`; `tests/review-view.test.js` — 13 tests.
+
+**Dev:** Review queue renders one merchant at a time, largest decision first. Keyboard: `1`–`9` assign suggested category, `/` search, `n` new, `x` exclude, `s` skip, arrows navigate. Every assignment sends `rememberRule: true, applyToPast: false`. `mountReview()` attaches a document-level keydown listener once, not per refresh, so shortcuts fire once per key. Merchant names and raw descriptions escaped with `escapeHtml` before render.
+
+**Plain:** Built the keyboard-driven review queue UI — one merchant per card, category suggestions on number keys, Claude prompt/paste for stuck cases.
+
+**Why:** The review queue converts the ledger's 10 uncategorised transactions into 7 merchant-level decisions. Each `rememberRule` saves a rule for future imports without rewriting history. The once-mounted keydown listener is deliberate: mounting per refresh would stack listeners and fire each key repeatedly.
+
 ### [2026-08-23 12:15] Added
 
 **Tech:** `server/routes/transactions.js` — `POST /api/transactions/bulk` handler; `tests/bulk-routes.test.js` — 10 comprehensive tests covering categorisation, rule creation, concurrent writes, and validation.

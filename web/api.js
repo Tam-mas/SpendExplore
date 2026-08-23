@@ -15,3 +15,13 @@ const postJson = (path, payload) =>
 export const getSnapshot    = () => request('/api/snapshot');
 export const previewImport  = (files) => postJson('/api/import/preview', { files });
 export const commitImport   = (files) => postJson('/api/import/commit', { files });
+
+export const patchTransaction = (id, payload) =>
+  request(`/api/transactions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+export const bulkCategorise = (payload) => postJson('/api/transactions/bulk', payload);
+export const createCategory  = (payload) => postJson('/api/categories', payload);
