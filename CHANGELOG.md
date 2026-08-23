@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 12:15] Added
+
+**Tech:** `server/routes/transactions.js` — `POST /api/transactions/bulk` handler; `tests/bulk-routes.test.js` — 10 comprehensive tests covering categorisation, rule creation, concurrent writes, and validation.
+
+**Dev:** Bulk endpoint assigns one category to all explicit ids in a single call, wrapped by the shared mutation gate to prevent concurrent-write races. `rememberRule` saves a single exact rule at the head, replacing any existing rule for that merchant. `applyToPast` sweeps other rows of the same merchant, marking them `'bulk'` and respecting existing `'manual'` categorisations. Merchant `'Unknown'` is never groupable, matching existing PATCH semantics.
+
+**Plain:** Added a bulk categorisation endpoint so users can category an entire merchant group in one HTTP call instead of N separate requests.
+
+**Why:** The review queue's core action is "this merchant is Coffee" — doing that as N separate PATCH calls would mean N backups and N round trips. The test harness verifies the mutation gate prevents lost updates when two bulk calls run concurrently, and that backups consistently precede writes.
+
 ### [2026-08-23 10:40] Added
 
 **Tech:** `lib/review.js` — `buildQueue()`, `suggestCategories()`, `promptForClaude()`, `parseClaudeResponse()`. `tests/review.test.js` — 20 comprehensive tests covering grouping, ranking, validation, and Claude integration.

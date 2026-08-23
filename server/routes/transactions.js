@@ -197,6 +197,72 @@ export function createTransactionRoutes(store, serialized) {
     if (req.method === 'POST' && pathname === '/api/categories') {
       return serialized(() => handleCreateCategory(req, res));
     }
+    if (req.method === 'POST' && pathname === '/api/transactions/bulk') {
+      return serialized(async () => {
+        const body = await readBody(req);
+        const ids = body?.ids;
+        const categoryId = body?.categoryId;
+
+        if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
+          return sendJson(res, 400, { error: 'ids must be a non-empty array of transaction ids' });
+        }
+        if (typeof categoryId !== 'string') {
+          return sendJson(res, 400, { error: 'categoryId is required' });
+        }
+
+        const { categories } = await store.read('categories');
+        if (!categories.some((c) => c.id === categoryId)) {
+          return sendJson(res, 400, { error: `Unknown category: ${categoryId}` });
+        }
+
+        const ledger = await store.read('ledger');
+        const wanted = new Set(ids);
+        const next = [...ledger];
+        let updated = 0;
+
+        for (let i = 0; i < next.length; i++) {
+          if (!wanted.has(next[i].id)) continue;
+          // An explicit selection is a hand decision, so it is 'manual'.
+          next[i] = { ...next[i], categoryId, categorySource: 'manual' };
+          updated++;
+        }
+        const notFound = ids.length - updated;
+
+        // The merchant to group on comes from the first id that actually exists.
+        const anchor = next.find((t) => wanted.has(t.id));
+        const merchant = anchor?.merchant ?? '';
+        // 'Unknown' is a placeholder for undecipherable descriptions, not a real
+        // merchant — grouping on it would sweep unrelated transactions together.
+        const canGroup = Boolean(merchant) && merchant !== 'Unknown';
+
+        let updatedPast = 0;
+        if (body?.applyToPast === true && canGroup) {
+          for (let i = 0; i < next.length; i++) {
+            const txn = next[i];
+            if (wanted.has(txn.id) || txn.merchant !== merchant) continue;
+            if (txn.categorySource === 'manual') continue;   // never overwrite a hand decision
+            next[i] = { ...txn, categoryId, categorySource: 'bulk' };
+            updatedPast++;
+          }
+        }
+
+        if (updated > 0 || updatedPast > 0) {
+          await store.backup();
+          await store.write('ledger', next);
+        }
+
+        let ruleAdded = false;
+        if (body?.rememberRule === true && canGroup) {
+          const value = merchant.toLowerCase().trim();
+          const rules = await store.read('rules');
+          const without = rules.filter((r) => !(r.match === 'exact' && r.value === value));
+          await store.write('rules', [{ match: 'exact', value, categoryId }, ...without]);
+          ruleAdded = true;
+        }
+
+        return sendJson(res, 200, { updated, updatedPast, notFound, ruleAdded });
+      });
+    }
     return false;
   };
 }
