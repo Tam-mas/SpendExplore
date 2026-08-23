@@ -51,9 +51,9 @@ envelopeBalance(c, M) = Σ allocation(c, m) for every month m from F through M
                        − Σ spend(c, m)      for every month m from F through M
 ```
 
-`spend(c, m)` uses the same spend definition the rest of the app already uses (`applyFilters`'s defaults: excludes permanently-excluded rows and income, categorised transactions for `c` only). Months before `F` are excluded entirely from both sums — per decision 2, the envelope has no opinion about them.
+`spend(c, m)` excludes permanently-excluded rows, same as `applyFilters`'s default. **Sign convention: `spend(c, m)` returns a positive magnitude**, not the ledger's signed negative — allocations are positive, the UI shows "$612 spent" not "-$612 spent", and comparing a signed negative against a positive allocation would make every month look on-track by construction (a real bug caught while drafting the code below — worth stating explicitly since it's easy to reintroduce). Months before `F` are excluded entirely from both sums — per decision 2, the envelope has no opinion about them.
 
-**Per-month status, for any month `M` that has an allocation:**
+**Per-month status, for any month `M` that has an allocation (`monthSpend` and `monthAllocation` both positive magnitudes):**
 
 ```
 monthSpend = spend(c, M)
