@@ -99,11 +99,14 @@ export function createPanel(initial = {}) {
       const options = { mode: 'light', colourFor, title: config.title };
       if (config.chartType === 'dots') {
         // The only chart needing raw amounts. They are derived through the SAME
-        // filters as the rest of the panel, then reduced to bare numbers — so the
-        // chart still never receives a whole transaction record.
+        // filters as the rest of the panel, then reduced to bare {amount, key,
+        // label} points — never a whole transaction record. Dots colour by the
+        // transaction's OWN category regardless of the panel's chosen slice, so
+        // this always resolves colour via the 'category' slice, not config.sliceBy.
         const ctx = buildContext(snapshot);
-        options.amounts = applyFilters(snapshot.transactions ?? [], spec.filters, ctx)
-          .map((t) => t.amount);
+        options.points = applyFilters(snapshot.transactions ?? [], spec.filters, ctx)
+          .map((t) => ({ amount: t.amount, key: t.categoryId, label: t.merchant }));
+        options.colourFor = colourResolver(snapshot, 'category');
       }
 
       const chart = renderChart(config.chartType, result, options);

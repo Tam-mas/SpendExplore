@@ -91,35 +91,47 @@ test('treemap escapes labels', () => {
   assert.doesNotMatch(renderTreemap(nasty, opts), /<u>x<\/u>/);
 });
 
-test('dot plot draws one dot per amount', () => {
-  const svg = renderDots(RESULT, { ...opts, amounts: [-10, -20, -30, -286.48] });
+const dotPoints = (amounts) => amounts.map((amount, i) => ({ amount, key: `cat-${i % 2}`, label: `Merchant ${i}` }));
+const dotsColourFor = (point) => (point.key === 'cat-0' ? '#2a78d6' : '#eb6834');
+
+test('dot plot draws one dot per point', () => {
+  const svg = renderDots(RESULT, { ...opts, points: dotPoints([-10, -20, -30, -286.48]) });
   assert.equal((svg.match(/<circle/g) ?? []).length, 4);
 });
 
-test('dot plot uses a single hue — it is one series', () => {
-  const svg = renderDots(RESULT, { ...opts, amounts: [-10, -20, -286.48] });
+test('dot plot colours each dot by its own category', () => {
+  const svg = renderDots(RESULT, { ...opts, points: dotPoints([-10, -20, -30]), colourFor: dotsColourFor });
+  const fills = [...svg.matchAll(/fill="(#[0-9a-f]{6})"/gi)].map((m) => m[1].toLowerCase());
+  assert.deepEqual(new Set(fills), new Set(['#2a78d6', '#eb6834']));
+});
+
+test('dot plot falls back to a single hue with no colourFor', () => {
+  const svg = renderDots(RESULT, { ...opts, points: dotPoints([-10, -20, -30]) });
   const fills = [...svg.matchAll(/fill="(#[0-9a-f]{6})"/gi)].map((m) => m[1].toLowerCase());
   assert.equal(new Set(fills).size, 1, `expected one hue, got ${[...new Set(fills)]}`);
 });
 
 test('dot plot markers are at least 8px across', () => {
-  assert.match(renderDots(RESULT, { ...opts, amounts: [-10] }), /r="4"/);
+  assert.match(renderDots(RESULT, { ...opts, points: dotPoints([-10]) }), /r="4"/);
 });
 
 test('dot plot shows exactly one VISIBLE label, for the largest outlier', () => {
-  const svg = renderDots(RESULT, { ...opts, amounts: [-10, -20, -30, -286.48] });
-  // Selective direct labels: one visible value, the outlier. Hover tooltips
-  // (<title>) stay on EVERY dot — they are how the user identifies a point.
+  const svg = renderDots(RESULT, { ...opts, points: dotPoints([-10, -20, -30, -286.48]) });
   assert.equal((svg.match(/class="viz-value"/g) ?? []).length, 1);
   assert.match(svg, /class="viz-value">-\$286\.48</);
-  assert.equal((svg.match(/<title>/g) ?? []).length, 4);
 });
 
-test('dot plot with no amounts renders a message', () => {
-  assert.match(renderDots(RESULT, { ...opts, amounts: [] }), /No data/);
+test('dot plot hover shows the merchant AND the amount, on every dot', () => {
+  const svg = renderDots(RESULT, { ...opts, points: [{ amount: -12.5, key: 'coffee', label: 'Blend Coffee' }, { amount: -8, key: 'coffee', label: 'Blend Coffee' }] });
+  assert.equal((svg.match(/<title>/g) ?? []).length, 2);
+  assert.match(svg, /<title>Blend Coffee: -\$12\.50<\/title>/);
+});
+
+test('dot plot with no points renders a message', () => {
+  assert.match(renderDots(RESULT, { ...opts, points: [] }), /No data/);
 });
 
 test('no treemap or dot output references an external host', () => {
-  const markup = renderTreemap(RESULT, opts) + renderDots(RESULT, { ...opts, amounts: [-1] });
+  const markup = renderTreemap(RESULT, opts) + renderDots(RESULT, { ...opts, points: dotPoints([-1]) });
   assert.doesNotMatch(markup, /https?:\/\/(?!127\.0\.0\.1|localhost)/);
 });
