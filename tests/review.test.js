@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildQueue, suggestCategories, promptForClaude, parseClaudeResponse } from '../lib/review.js';
+import { buildQueue, suggestCategories, promptForClaude, parseClaudeResponse, itemForMerchant } from '../lib/review.js';
 
 const CATEGORIES = {
   groups: [
@@ -162,4 +162,34 @@ test('buildQueue does not mutate the snapshot', () => {
   const before = JSON.stringify(SNAPSHOT);
   buildQueue(SNAPSHOT);
   assert.equal(JSON.stringify(SNAPSHOT), before);
+});
+
+test('itemForMerchant returns null for a merchant with no transactions', () => {
+  assert.equal(itemForMerchant(SNAPSHOT, 'Nobody'), null);
+});
+
+test('itemForMerchant reports isPending true while any transaction is unknown', () => {
+  const item = itemForMerchant(SNAPSHOT, 'Good Heavens');
+  assert.equal(item.isPending, true);
+  assert.equal(item.currentCategoryId, null);
+});
+
+test('itemForMerchant reports isPending false once every transaction has a real category', () => {
+  const decided = {
+    ...SNAPSHOT,
+    transactions: SNAPSHOT.transactions.map((t) =>
+      t.merchant === 'Good Heavens' ? { ...t, categoryId: 'coffee', categorySource: 'manual' } : t)
+  };
+  const item = itemForMerchant(decided, 'Good Heavens');
+  assert.equal(item.isPending, false);
+  assert.equal(item.currentCategoryId, 'coffee');
+});
+
+test('itemForMerchant excludes permanently-excluded transactions from its totals', () => {
+  const withExcluded = {
+    ...SNAPSHOT,
+    transactions: [...SNAPSHOT.transactions, { id: 'zz', date: '2026-08-01', amount: -999, merchant: 'Good Heavens', rawDescription: 'x', categoryId: 'uncategorised', categorySource: 'unknown', excluded: true }]
+  };
+  const item = itemForMerchant(withExcluded, 'Good Heavens');
+  assert.equal(item.count, itemForMerchant(SNAPSHOT, 'Good Heavens').count);
 });
