@@ -17,7 +17,8 @@ const COLLECTIONS = {
   rules:      { file: 'rules.json',      seedFile: 'rules.json' },
   accounts:   { file: 'accounts.json',   seed: () => [] },
   views:      { file: 'views.json',      seed: () => [] },
-  imports:    { file: 'imports.json',    seed: () => [] }
+  imports:    { file: 'imports.json',    seed: () => [] },
+  budgets:    { file: 'budgets.json',    seed: () => [] }
 };
 
 const exists = async (path) => {
