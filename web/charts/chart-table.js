@@ -1,4 +1,4 @@
-import { formatMoney, escapeHtml, concentrationLine } from './scale.js';
+import { formatMeasure, escapeHtml, concentrationLine } from './scale.js';
 
 /**
  * Table view. Always available for every panel — it is the accessible relief
@@ -9,10 +9,11 @@ export function renderTable(result, { title = '' } = {}) {
   const rows = result.rows ?? [];
   if (!rows.length) return `<p class="viz-empty">No data for these filters</p>`;
 
+  const measure = result.meta?.measure;
   const body = rows.map((row) => `
     <tr>
       <td>${escapeHtml(row.label)}</td>
-      <td class="num">${formatMoney(row.value)}</td>
+      <td class="num">${formatMeasure(row.value, measure)}</td>
       <td class="num">${row.count}</td>
       <td class="viz-note">${escapeHtml(concentrationLine(row.stats))}</td>
     </tr>`).join('');

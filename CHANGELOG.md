@@ -1,5 +1,15 @@
 # Changelog
 
+### [2026-08-23 11:20] Fixed
+
+**Tech:** `web/charts/scale.js` — added `formatMeasure(value, measure)`; `web/charts/chart-bar.js`, `chart-table.js`, `chart-donut.js`, `chart-line.js`, `chart-treemap.js` now call it instead of `formatMoney` for row/total values; new tests in `tests/charts-bar.test.js`.
+
+**Dev:** Every renderer formatted values with `formatMoney` regardless of `result.meta.measure`, so a `count` bucket of 5 rendered as `$5.00`. `formatMeasure` branches on the measure name: `count` gives a bare integer, `pctOfTotal` gives up to one decimal plus `%`, everything else (including unknown/missing) falls back to `formatMoney`, so the money paths are unchanged. `chart-dots.js` and `concentrationLine()` were left alone since they only ever show raw transaction money.
+
+**Plain:** Fixed charts showing transaction counts and percentages as dollar amounts, like `$5.00` instead of `5`.
+
+**Why:** Found this driving the live UI — switching a panel to "# Txns" showed nonsense like "$5.00 transactions", which would have confused anyone trying to read the count or percentage views.
+
 ### [2026-08-23 10:40] Fixed
 
 **Tech:** `server/static.js` — added `LIB_DIR`, factored the boundary check into `resolveWithinRoot()`, `serveStatic()` now routes `/lib/*` to `lib/` and everything else to `web/`; new `tests/module-graph.test.js`; two new traversal tests in `tests/routes.test.js`

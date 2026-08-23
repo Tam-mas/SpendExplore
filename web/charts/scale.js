@@ -30,6 +30,21 @@ export function formatMoney(n) {
 export const formatPercent = (fraction) => `${Math.round(fraction * 100)}%`;
 
 /**
+ * Format a measured value for display. The measure decides the unit —
+ * money for sum/avg/median, a plain integer for a transaction count,
+ * a percentage for a share of total. Unknown/missing measures fall back
+ * to money, so nothing regresses.
+ */
+export function formatMeasure(value, measure) {
+  if (measure === 'count') return String(Math.round(value));
+  if (measure === 'pctOfTotal') {
+    const rounded = Math.round(value * 10) / 10;
+    return `${rounded}%`;
+  }
+  return formatMoney(value);
+}
+
+/**
  * Escape a string for interpolation into markup. Bank descriptions and
  * user-authored category labels are untrusted input.
  */

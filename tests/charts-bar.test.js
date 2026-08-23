@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linearScale, niceTicks, formatMoney, escapeHtml } from '../web/charts/scale.js';
+import { linearScale, niceTicks, formatMoney, formatMeasure, escapeHtml } from '../web/charts/scale.js';
 import { renderBar } from '../web/charts/chart-bar.js';
 import { renderTable } from '../web/charts/chart-table.js';
 
@@ -49,6 +49,14 @@ test('formatMoney is grouped, two-decimal, sign-leading', () => {
   assert.equal(formatMoney(4200), '$4,200.00');
 });
 
+test('formatMeasure picks the unit from the measure name', () => {
+  assert.equal(formatMeasure(5, 'count'), '5');
+  assert.equal(formatMeasure(-140, 'sum'), '-$140.00');
+  assert.equal(formatMeasure(50, 'pctOfTotal'), '50%');
+  assert.equal(formatMeasure(12.5, 'pctOfTotal'), '12.5%');
+  assert.equal(formatMeasure(-10, undefined), '-$10.00');
+});
+
 test('escapeHtml neutralises markup from bank descriptions', () => {
   assert.equal(escapeHtml('<img src=x onerror=1>'), '&lt;img src=x onerror=1&gt;');
   assert.equal(escapeHtml('Tom & Jerry'), 'Tom &amp; Jerry');
@@ -86,6 +94,22 @@ test('renderBar renders an empty result as a message, not a broken chart', () =>
   assert.doesNotMatch(svg, /<rect/);
 });
 
+test('renderBar shows the raw sum as money — the money path must not regress', () => {
+  const svg = renderBar(RESULT, opts);
+  assert.match(svg, /-\$200\.00/);
+});
+
+test('renderBar shows a plain integer for a count measure, not money', () => {
+  const COUNT_RESULT = {
+    ...RESULT,
+    rows: [{ ...RESULT.rows[0], value: 5 }],
+    meta: { ...RESULT.meta, measure: 'count' }
+  };
+  const svg = renderBar(COUNT_RESULT, opts);
+  assert.match(svg, />5</);
+  assert.doesNotMatch(svg, /\$5\.00/);
+});
+
 test('renderTable shows label, value and count as text', () => {
   const html = renderTable(RESULT, opts);
   assert.match(html, /<table/);
@@ -102,6 +126,17 @@ test('renderTable shows the concentration line for each row', () => {
 test('renderTable escapes labels', () => {
   const nasty = { ...RESULT, rows: [{ ...RESULT.rows[0], label: '<b>x</b>' }] };
   assert.doesNotMatch(renderTable(nasty, opts), /<b>x<\/b>/);
+});
+
+test('renderTable shows a plain integer for a count measure, not money', () => {
+  const COUNT_RESULT = {
+    ...RESULT,
+    rows: [{ ...RESULT.rows[0], value: 5 }],
+    meta: { ...RESULT.meta, measure: 'count' }
+  };
+  const html = renderTable(COUNT_RESULT, opts);
+  assert.match(html, /<td class="num">5<\/td>/);
+  assert.doesNotMatch(html, /\$5\.00/);
 });
 
 test('no chart output references an external host', () => {

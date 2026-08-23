@@ -1,4 +1,4 @@
-import { linearScale, niceTicks, formatMoney, escapeHtml } from './scale.js';
+import { linearScale, niceTicks, formatMeasure, escapeHtml } from './scale.js';
 
 const WIDTH = 600;
 const HEIGHT = 220;
@@ -36,18 +36,19 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   }).join('');
 
   const colour = colourFor ? colourFor(rows[0]) : 'currentColor';
+  const measure = result.meta?.measure;
   const polyline = `<polyline points="${points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${colour}" stroke-width="2" stroke-linejoin="round"/>`;
 
   const markers = points.map((p, i) => {
     const isEnd = i === 0 || i === points.length - 1;
-    const title = isEnd ? `<title>${escapeHtml(p.row.label)}: ${formatMoney(p.row.value)}</title>` : '';
+    const title = isEnd ? `<title>${escapeHtml(p.row.label)}: ${formatMeasure(p.row.value, measure)}</title>` : '';
     return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2">${title}</circle>`;
   }).join('');
 
   // Selective direct labels: first and last only.
   const ends = points.length > 1 ? [points[0], points.at(-1)] : [points[0]];
   const endLabels = ends.map((p, i) =>
-    `<text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="${i === 0 ? 'start' : 'end'}" class="viz-value">${formatMoney(p.row.value)}</text>`
+    `<text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="${i === 0 ? 'start' : 'end'}" class="viz-value">${formatMeasure(p.row.value, measure)}</text>`
   ).join('');
 
   const xLabels = points.map((p) =>

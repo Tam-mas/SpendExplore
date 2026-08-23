@@ -1,4 +1,4 @@
-import { linearScale, formatMoney, escapeHtml } from './scale.js';
+import { linearScale, formatMeasure, escapeHtml } from './scale.js';
 
 const ROW_HEIGHT = 34;
 const BAR_HEIGHT = 16;      // thin marks
@@ -21,6 +21,7 @@ export function renderBar(result, { mode = 'light', colourFor, title = '' } = {}
   const height = rows.length * ROW_HEIGHT;
   const maxValue = Math.max(...rows.map((r) => Math.abs(r.value)));
   const scale = linearScale(maxValue, plotWidth);
+  const measure = result.meta?.measure;
 
   const bars = rows.map((row, i) => {
     const y = i * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2;
@@ -30,8 +31,8 @@ export function renderBar(result, { mode = 'light', colourFor, title = '' } = {}
     <g>
       <text x="0" y="${y + BAR_HEIGHT - 3}" class="viz-label">${escapeHtml(row.label)}</text>
       <rect x="${LABEL_WIDTH}" y="${y}" width="${barWidth.toFixed(1)}" height="${BAR_HEIGHT}"
-            rx="4" fill="${colour}"><title>${escapeHtml(row.label)}: ${formatMoney(row.value)} · ${row.count} txns</title></rect>
-      <text x="${width}" y="${y + BAR_HEIGHT - 3}" text-anchor="end" class="viz-value">${formatMoney(row.value)}</text>
+            rx="4" fill="${colour}"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
+      <text x="${width}" y="${y + BAR_HEIGHT - 3}" text-anchor="end" class="viz-value">${formatMeasure(row.value, measure)}</text>
     </g>`;
   }).join('');
 

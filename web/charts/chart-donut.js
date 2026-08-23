@@ -1,4 +1,4 @@
-import { formatMoney, escapeHtml } from './scale.js';
+import { formatMeasure, escapeHtml } from './scale.js';
 
 const SIZE = 260;
 const RADIUS = 110;
@@ -35,6 +35,7 @@ export function renderDonut(result, { mode = 'light', colourFor, title = '' } = 
   const cx = SIZE / 2;
   const cy = SIZE / 2;
   let angle = -Math.PI / 2;
+  const measure = result.meta?.measure;
 
   const paths = rows.map((row) => {
     const sweep = magnitude === 0 ? 0 : (Math.abs(row.value) / magnitude) * Math.PI * 2;
@@ -42,14 +43,14 @@ export function renderDonut(result, { mode = 'light', colourFor, title = '' } = 
     const end = angle + sweep;
     angle = end;
     const colour = colourFor ? colourFor(row) : 'currentColor';
-    return `<path d="${arcPath(cx, cy, RADIUS, RADIUS - THICKNESS, start, end)}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2"><title>${escapeHtml(row.label)}: ${formatMoney(row.value)}</title></path>`;
+    return `<path d="${arcPath(cx, cy, RADIUS, RADIUS - THICKNESS, start, end)}" fill="${colour}" stroke="var(--viz-surface)" stroke-width="2"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)}</title></path>`;
   }).join('');
 
   const legend = rows.map((row) => {
     const colour = colourFor ? colourFor(row) : 'currentColor';
-    return `<li><span class="viz-swatch" style="background:${colour}"></span>${escapeHtml(row.label)} <span class="viz-value">${formatMoney(row.value)}</span></li>`;
+    return `<li><span class="viz-swatch" style="background:${colour}"></span>${escapeHtml(row.label)} <span class="viz-value">${formatMeasure(row.value, measure)}</span></li>`;
   }).join('');
 
   const legendHtml = rows.length > 1 ? `<ul class="viz-legend">${legend}</ul>` : '';
-  return `<div class="viz-donut"><svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">${paths}<circle class="viz-donut-hole" cx="${cx}" cy="${cy}" r="${RADIUS - THICKNESS}" fill="var(--viz-surface)"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" class="viz-total">${formatMoney(result.total)}</text></svg>${legendHtml}</div>`;
+  return `<div class="viz-donut"><svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">${paths}<circle class="viz-donut-hole" cx="${cx}" cy="${cy}" r="${RADIUS - THICKNESS}" fill="var(--viz-surface)"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" class="viz-total">${formatMeasure(result.total, measure)}</text></svg>${legendHtml}</div>`;
 }

@@ -1,5 +1,5 @@
 import { sequentialColour } from './palette.js';
-import { formatMoney, escapeHtml } from './scale.js';
+import { formatMeasure, escapeHtml } from './scale.js';
 
 const WIDTH = 600;
 const HEIGHT = 320;
@@ -56,6 +56,7 @@ export function renderTreemap(result, { mode = 'light', title = '' } = {}) {
   const magnitudes = rows.map((r) => Math.abs(r.value));
   const max = Math.max(...magnitudes, 1);
   const tiles = squarify(magnitudes, WIDTH, HEIGHT);
+  const measure = result.meta?.measure;
 
   const cells = rows.map((row, i) => {
     const tile = tiles[i];
@@ -63,11 +64,11 @@ export function renderTreemap(result, { mode = 'light', title = '' } = {}) {
     const showLabel = tile.w > 70 && tile.h > 34;
     const label = showLabel
       ? `<text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 20).toFixed(1)}" class="viz-tile-label">${escapeHtml(row.label)}</text>
-         <text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 36).toFixed(1)}" class="viz-tile-value">${formatMoney(row.value)}</text>`
+         <text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 36).toFixed(1)}" class="viz-tile-value">${formatMeasure(row.value, measure)}</text>`
       : '';
     return `<g>
       <rect x="${tile.x.toFixed(1)}" y="${tile.y.toFixed(1)}" width="${tile.w.toFixed(1)}" height="${tile.h.toFixed(1)}"
-            fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" rx="4"><title>${escapeHtml(row.label)}: ${formatMoney(row.value)} · ${row.count} txns</title></rect>
+            fill="${colour}" stroke="var(--viz-surface)" stroke-width="2" rx="4"><title>${escapeHtml(row.label)}: ${formatMeasure(row.value, measure)} · ${row.count} txns</title></rect>
       ${label}
     </g>`;
   }).join('');
