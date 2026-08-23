@@ -92,6 +92,9 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-filter-bar { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 
 .review { max-width: 640px; }
+.review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.review-nav { padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 13px; }
+.review-nav[disabled] { opacity: .4; cursor: default; }
 .review-card { border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin: 12px 0; }
 .review-card h2 { margin: 0 0 4px; font-size: 20px; }
 .review-meta { margin: 0 0 4px; font-variant-numeric: tabular-nums; }

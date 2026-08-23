@@ -1,4 +1,4 @@
-import { buildQueue, promptForClaude, parseClaudeResponse } from '../lib/review.js';
+import { buildQueue, itemForMerchant, promptForClaude, parseClaudeResponse } from '../lib/review.js';
 import { escapeHtml, formatMoney } from './charts/scale.js';
 import { bulkCategorise, patchTransaction, createCategory, getSnapshot } from './api.js';
 
@@ -9,15 +9,29 @@ const assignableCategories = (snapshot) =>
   (snapshot?.categories?.categories ?? []).filter((c) => c.id !== 'income' && c.id !== 'uncategorised');
 
 /**
+ * The session's stable review order: every merchant that has ever appeared
+ * in the pending queue, in the order it first appeared. Only ever grows —
+ * an assignment never removes a merchant from it, which is what lets Back
+ * return to a merchant after it has been decided.
+ */
+function growOrder(snapshot, previousOrder = []) {
+  const pending = buildQueue(snapshot).items.map((item) => item.merchant);
+  const seen = new Set(previousOrder);
+  return [...previousOrder, ...pending.filter((merchant) => !seen.has(merchant))];
+}
+
+/**
  * Render the queue. Pure — snapshot and state in, markup out — so it is
  * testable in Node with no DOM.
  */
 export function renderReview(snapshot, state = {}) {
   const queue = buildQueue(snapshot);
-  const index = state.index ?? 0;
-  const item = queue.items[index];
+  const order = state.order ?? growOrder(snapshot);
+  const index = order.length ? Math.min(Math.max(state.index ?? 0, 0), order.length - 1) : 0;
+  const merchant = order[index];
+  const item = merchant ? itemForMerchant(snapshot, merchant) : null;
 
-  if (!queue.items.length || !item) {
+  if (!order.length || !item) {
     return `<div class="review-done">
       <h2>All caught up</h2>
       <p class="viz-note">Nothing to review — every transaction has a category.</p>
@@ -38,10 +52,16 @@ export function renderReview(snapshot, state = {}) {
       ? `<p class="review-ok">${escapeHtml(state.pasteResult)}</p>`
       : '';
 
+  const statusNote = item.isPending
+    ? `<p class="viz-note">Assigning remembers this merchant for future imports. Past transactions are left alone.</p>`
+    : `<p class="viz-note">Currently filed as <b>${escapeHtml(labelFor(snapshot, item.currentCategoryId))}</b>. Pick a different category to change it — past transactions are left alone.</p>`;
+
   return `
   <div class="review">
     <header class="review-head">
-      <span class="viz-note">${index + 1} of ${queue.items.length} · ${queue.totalRows} transactions to place</span>
+      <button class="review-nav" data-review-action="prev" ${index === 0 ? 'disabled' : ''} aria-label="Back">‹ Back</button>
+      <span class="viz-note">${index + 1} of ${order.length}${queue.totalRows ? ` · ${queue.totalRows} transaction${queue.totalRows === 1 ? '' : 's'} still to place` : ''}</span>
+      <button class="review-nav" data-review-action="next" ${index === order.length - 1 ? 'disabled' : ''} aria-label="Next">Next ›</button>
     </header>
 
     <section class="review-card">
@@ -67,7 +87,7 @@ export function renderReview(snapshot, state = {}) {
         <button data-review-action="exclude"><kbd>x</kbd> Exclude</button>
         <button data-review-action="skip"><kbd>s</kbd> Skip</button>
       </div>
-      <p class="viz-note">Assigning remembers this merchant for future imports. Past transactions are left alone.</p>
+      ${statusNote}
     </section>
 
     <details class="review-claude">
@@ -83,25 +103,33 @@ export function renderReview(snapshot, state = {}) {
 
 /** Wire the queue to the live DOM. */
 export function mountReview(root, { snapshot, onChanged } = {}) {
-  let state = { index: 0 };
   let current = snapshot;
+  let state = { index: 0, order: growOrder(current) };
 
   const draw = () => { root.innerHTML = renderReview(current, state); };
 
   const refresh = async () => {
     current = await getSnapshot();
-    if (state.index >= buildQueue(current).items.length) state.index = 0;
+    state.order = growOrder(current, state.order);
+    state.index = state.order.length ? Math.min(state.index, state.order.length - 1) : 0;
     draw();
     onChanged?.(current);
   };
 
-  const currentItem = () => buildQueue(current).items[state.index];
+  const currentItem = () => {
+    const merchant = state.order[state.index];
+    return merchant ? itemForMerchant(current, merchant) : null;
+  };
+
+  const advance = () => {
+    state.index = state.order.length ? Math.min(state.index + 1, state.order.length - 1) : 0;
+  };
 
   async function assign(categoryId) {
     const item = currentItem();
     if (!item) return;
     await bulkCategorise({ ids: item.ids, categoryId, rememberRule: true, applyToPast: false });
-    state = { index: 0 };
+    advance();
     await refresh();
   }
 
@@ -109,7 +137,7 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
     const item = currentItem();
     if (!item) return;
     for (const id of item.ids) await patchTransaction(id, { excluded: true });
-    state = { index: 0 };
+    advance();
     await refresh();
   }
 
@@ -120,8 +148,11 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
     const action = event.target.closest('[data-review-action]')?.dataset.reviewAction;
     if (!action) return;
 
-    if (action === 'skip') {
-      state.index += 1;
+    if (action === 'skip' || action === 'next') {
+      advance();
+      draw();
+    } else if (action === 'prev') {
+      state.index = Math.max(0, state.index - 1);
       draw();
     } else if (action === 'exclude') {
       await excludeGroup();
@@ -162,7 +193,9 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
       const parts = [`Applied ${applied} of ${assignments.length}.`];
       if (skippedMerchants > 0) parts.push(`${skippedMerchants} merchant${skippedMerchants === 1 ? ' was' : 's were'} not in the queue.`);
       if (errors.length > 0) parts.push(`${errors.length} error${errors.length === 1 ? '' : 's'}.`);
-      state = { index: 0, pasteResult: parts.join(' ') };
+      state.index = 0;
+      state.pasteResult = parts.join(' ');
+      state.pasteError = null;
       await refresh();
     }
   });
@@ -185,11 +218,11 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
     if (/^[1-9]$/.test(event.key)) {
       const id = item.suggestions[Number(event.key) - 1];
       if (id) { event.preventDefault(); assign(id); }
-    } else if (event.key === 's') { state.index += 1; draw(); }
+    } else if (event.key === 's') { advance(); draw(); }
     else if (event.key === 'x') { excludeGroup(); }
     else if (event.key === 'n') { root.querySelector('[data-review-action="new-category"]')?.click(); }
     else if (event.key === '/') { event.preventDefault(); root.querySelector('[data-review-action="search"]')?.focus(); }
-    else if (event.key === 'ArrowRight') { state.index += 1; draw(); }
+    else if (event.key === 'ArrowRight') { advance(); draw(); }
     else if (event.key === 'ArrowLeft') { state.index = Math.max(0, state.index - 1); draw(); }
   };
   document.addEventListener('keydown', onKey);

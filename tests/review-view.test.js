@@ -74,8 +74,10 @@ test('an empty queue shows a done state, not a broken card', () => {
   assert.doesNotMatch(html, /data-assign=/);
 });
 
-test('an index past the end shows the done state rather than crashing', () => {
-  assert.match(renderReview(SNAPSHOT, { index: 99 }), /nothing to review|all caught up/i);
+test('an index past the end clamps to the last item rather than crashing or showing done', () => {
+  const html = renderReview(SNAPSHOT, { index: 99 });
+  assert.doesNotMatch(html, /all caught up/i);
+  assert.match(html, /Good Heavens|Arctel/);
 });
 
 test('escapes merchant names and raw descriptions', () => {
@@ -96,4 +98,39 @@ test('shows paste errors when present', () => {
 
 test('references no external host', () => {
   assert.doesNotMatch(renderReview(SNAPSHOT, state), /https?:\/\/(?!127\.0\.0\.1|localhost)/);
+});
+
+test('offers Back and Next navigation buttons', () => {
+  const html = renderReview(SNAPSHOT, state);
+  assert.match(html, /data-review-action="prev"/);
+  assert.match(html, /data-review-action="next"/);
+});
+
+test('Back is disabled on the first item, Next is disabled on the last', () => {
+  const first = renderReview(SNAPSHOT, { index: 0 });
+  assert.match(first, /data-review-action="prev"[^>]*disabled/);
+  const last = renderReview(SNAPSHOT, { index: 1 });
+  assert.match(last, /data-review-action="next"[^>]*disabled/);
+});
+
+test('revisiting an already-decided merchant shows what it is filed as, not the assign prompt', () => {
+  const decided = {
+    ...SNAPSHOT,
+    transactions: SNAPSHOT.transactions.map((t) =>
+      t.merchant === 'Arctel' ? { ...t, categoryId: 'coffee', categorySource: 'manual' } : t)
+  };
+  const html = renderReview(decided, { index: 0, order: ['Arctel', 'Good Heavens'] });
+  assert.match(html, /Arctel/);
+  assert.match(html, /Currently filed as/i);
+  assert.match(html, /Coffee/);
+});
+
+test('a fully resolved session still lets you page back through it, not "all caught up"', () => {
+  const allDone = {
+    ...SNAPSHOT,
+    transactions: SNAPSHOT.transactions.map((t) => ({ ...t, categoryId: 'coffee', categorySource: 'manual' }))
+  };
+  const html = renderReview(allDone, { index: 0, order: ['Arctel', 'Good Heavens'] });
+  assert.doesNotMatch(html, /all caught up/i);
+  assert.match(html, /Arctel/);
 });
