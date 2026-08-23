@@ -107,6 +107,20 @@ test('colourResolver keys group colour by group id', () => {
   assert.equal(resolve({ key: 'transport' }), '#eb6834');
 });
 
+test('a stacked panel supplies series broken down by group, aligned with the time buckets', () => {
+  const p = createPanel({ id: 'p', sliceBy: 'month', chartType: 'stacked' });
+  const html = p.html(SNAPSHOT, {});
+  assert.match(html, /<title>Transport: -\$200\.00<\/title>/);
+  assert.match(html, /<title>Food &amp; Drink: -\$100\.00<\/title>/);
+  assert.match(html, /<title>Food &amp; Drink: -\$40\.00<\/title>/);
+});
+
+test('a stacked panel colours by group regardless of the panel own slice', () => {
+  const p = createPanel({ id: 'p', sliceBy: 'month', chartType: 'stacked' });
+  const html = p.html(SNAPSHOT, {});
+  assert.match(html, /#eb6834/i);
+});
+
 test('colourResolver gives non-taxonomy slices a single stable hue', () => {
   const resolve = colourResolver(SNAPSHOT, 'merchant');
   assert.equal(resolve({ key: 'Coles' }), resolve({ key: 'BP' }));

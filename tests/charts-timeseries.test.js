@@ -96,13 +96,21 @@ test('single-series line has no legend box — the title names it', () => {
   assert.doesNotMatch(renderLine(MONTHLY, opts), /viz-legend/);
 });
 
-test('stacked area draws one band per series', () => {
+test('stacked bar draws one column of segments per time bucket', () => {
   const svg = renderStacked(MONTHLY, { ...opts, series: [
     { key: 'food-drink', label: 'Food & Drink', values: [-100, -150, -120] },
     { key: 'transport', label: 'Transport', values: [-200, -300, -280] }
   ] });
-  assert.equal((svg.match(/<path/g) ?? []).length, 2);
+  assert.equal((svg.match(/<rect/g) ?? []).length, 6); // 2 series x 3 months
   assert.match(svg, /viz-legend/);
+});
+
+test('stacked bar omits a segment when its value is zero for that bucket', () => {
+  const svg = renderStacked(MONTHLY, { ...opts, series: [
+    { key: 'food-drink', label: 'Food & Drink', values: [0, -150, -120] },
+    { key: 'transport', label: 'Transport', values: [-200, -300, -280] }
+  ] });
+  assert.equal((svg.match(/<rect/g) ?? []).length, 5);
 });
 
 test('single-series stacked emits no legend — the title names it', () => {
@@ -112,15 +120,26 @@ test('single-series stacked emits no legend — the title names it', () => {
   assert.doesNotMatch(svg, /viz-legend/);
 });
 
-test('stacked area leaves a 2px surface gap between bands', () => {
+test('stacked bar direct-labels each time bucket and its total', () => {
   const svg = renderStacked(MONTHLY, { ...opts, series: [
-    { key: 'a', label: 'A', values: [-100, -150, -120] },
-    { key: 'b', label: 'B', values: [-200, -300, -280] }
+    { key: 'a', label: 'A', values: [-300, -450, -400] }
   ] });
-  assert.match(svg, /stroke-width="2"/);
+  assert.match(svg, /Jun 2026/);
+  assert.match(svg, /Jul 2026/);
+  assert.match(svg, /Aug 2026/);
+  assert.match(svg, /-\$300\.00/);
+  assert.match(svg, /-\$450\.00/);
+  assert.match(svg, /-\$400\.00/);
 });
 
-test('stacked area refuses a non-chronological slice', () => {
+test('stacked bar hover tooltip shows the group name and amount for each segment', () => {
+  const svg = renderStacked(MONTHLY, { ...opts, series: [
+    { key: 'food-drink', label: 'Food & Drink', values: [-100, -150, -120] }
+  ] });
+  assert.match(svg, /<title>Food &amp; Drink: -\$100\.00<\/title>/);
+});
+
+test('stacked bar refuses a non-chronological slice', () => {
   assert.match(renderStacked(CATEGORICAL, { ...opts, series: [] }), /time/i);
 });
 

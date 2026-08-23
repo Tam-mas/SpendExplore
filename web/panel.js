@@ -1,6 +1,6 @@
 import { query } from '../lib/query/query.js';
 import { applyFilters, buildContext } from '../lib/query/filter.js';
-import { SLICES } from '../lib/query/group-by.js';
+import { SLICES, groupBy } from '../lib/query/group-by.js';
 import { MEASURES } from '../lib/query/measures.js';
 import { chartsFor, renderChart, defaultChartFor } from './charts/index.js';
 import { colourForGroup, colourForCategory, GROUP_SLOTS } from './charts/palette.js';
@@ -107,6 +107,35 @@ export function createPanel(initial = {}) {
         options.points = applyFilters(snapshot.transactions ?? [], spec.filters, ctx)
           .map((t) => ({ amount: t.amount, key: t.categoryId, label: t.merchant }));
         options.colourFor = colourResolver(snapshot, 'category');
+      }
+      if (config.chartType === 'stacked') {
+        // Stacked needs a SECOND dimension the slice-by-month/week query
+        // result doesn't carry on its own: each bucket's total broken down
+        // by group. Always grouped by GROUP, not category — the app's
+        // categorical palette is only validated safe up to 7 colours, which
+        // is exactly the group count, and colours by the transaction's own
+        // group regardless of config.sliceBy for the same reason Dots does.
+        const ctx = buildContext(snapshot);
+        const filtered = applyFilters(snapshot.transactions ?? [], spec.filters, ctx);
+        const buckets = groupBy(filtered, config.sliceBy, ctx);
+        const groupOf = new Map((snapshot?.categories?.categories ?? []).map((c) => [c.id, c.groupId]));
+        const groupLabels = new Map((snapshot?.categories?.groups ?? []).map((g) => [g.id, g.label]));
+
+        const totalsByGroup = new Map();
+        for (const txn of filtered) {
+          const groupId = groupOf.get(txn.categoryId) ?? 'other';
+          totalsByGroup.set(groupId, (totalsByGroup.get(groupId) ?? 0) + Math.abs(txn.amount));
+        }
+        const groupOrder = [...totalsByGroup.entries()].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+
+        options.series = groupOrder.map((groupId) => ({
+          key: groupId,
+          label: groupLabels.get(groupId) ?? groupId,
+          values: buckets.map((bucket) =>
+            bucket.rows.filter((t) => (groupOf.get(t.categoryId) ?? 'other') === groupId)
+              .reduce((a, t) => a + t.amount, 0))
+        }));
+        options.colourFor = colourResolver(snapshot, 'group');
       }
 
       const chart = renderChart(config.chartType, result, options);
