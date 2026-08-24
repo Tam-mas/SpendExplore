@@ -647,11 +647,12 @@ test('deltaChip names the baseline it is comparing against', () => {
   assert.match(html, /vs 3-per avg/);
 });
 
-test('deltaChip escapes nothing user-authored into markup unescaped', () => {
-  // The only interpolated text is a fixed label, but the escape must stay in
-  // place so a future mode label cannot inject markup.
+test('deltaChip emits exactly one element and no other markup', () => {
+  // Two angle brackets = <span> and </span>. Any interpolation that bypassed
+  // escapeHtml and introduced markup would push this count above two.
   const html = deltaChip({ baseline: -200, delta: 100, deltaPct: 0.5 }, 'sum', 'prevPeriod');
-  assert.equal(html.includes('<script'), false);
+  assert.equal((html.match(/</g) ?? []).length, 2);
+  assert.equal((html.match(/>/g) ?? []).length, 2);
 });
 ```
 
@@ -1227,6 +1228,13 @@ test('the KPI row shows a delta chip naming the baseline', () => {
   assert.match(html, /vs prev/);
 });
 
+test('the Transactions tile carries its own count baseline, not the dollar one', () => {
+  // July had 1 transaction, August has 1 — the count is flat while the dollars
+  // are up 50%. If this tile reused the sum's delta it would read "up 50%".
+  const html = renderOverviewForCompare(CMP_SNAPSHOT, AUG_FILTERS, [], {}, 0, '', 'prevPeriod');
+  assert.match(html, /Transactions<\/span><b>1<\/b><span class="viz-delta[^"]*">– no change/);
+});
+
 test('the KPI row shows no delta chip when comparison is off', () => {
   const html = renderOverviewForCompare(CMP_SNAPSHOT, AUG_FILTERS, [], {}, 0, '', 'off');
   assert.equal(html.includes('viz-delta-up'), false);
@@ -1317,15 +1325,20 @@ Replace `kpiRow` with:
 
 ```js
 function kpiRow(snapshot, globalFilters, compareMode = 'off') {
-  const result = compareQuery(snapshot, { filters: globalFilters, sliceBy: 'category', measure: 'sum' }, compareMode);
+  const spec = { filters: globalFilters, sliceBy: 'category' };
+  const result = compareQuery(snapshot, { ...spec, measure: 'sum' }, compareMode);
+  // A second pass, for the count's OWN baseline. The transaction count moves
+  // independently of the dollars — twenty small shops versus one big one — so
+  // reusing the sum's delta here would state something untrue. Cost is one
+  // more pass over an in-memory array.
+  const counts = compareQuery(snapshot, { ...spec, measure: 'count' }, compareMode);
   const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown' && !t.excluded).length;
 
-  // The grand-total row is shaped like a query row so deltaChip can format it
-  // with no special case.
+  // Both grand-total rows are shaped like a query row so deltaChip formats
+  // them with no special case. When comparison is off or unavailable,
+  // baselineTotal is null and deltaChip renders nothing.
   const totalRow = { baseline: result.baselineTotal, delta: result.baselineDelta, deltaPct: result.baselineDeltaPct };
-  const countRow = result.baselineAvailable
-    ? { baseline: 0, delta: null, deltaPct: null }
-    : {};
+  const countRow = { baseline: counts.baselineTotal, delta: counts.baselineDelta, deltaPct: counts.baselineDeltaPct };
 
   return `
   <div class="kpis">
