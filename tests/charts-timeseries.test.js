@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderDonut } from '../web/charts/chart-donut.js';
 import { renderLine } from '../web/charts/chart-line.js';
+import { renderLine as renderLineForBaseline } from '../web/charts/chart-line.js';
 import { renderStacked } from '../web/charts/chart-stacked.js';
+import { renderTable as renderTableForBaseline } from '../web/charts/chart-table.js';
 
 const row = (key, label, value, count = 1) => ({
   key, label, value, count, total: value,
@@ -219,9 +221,6 @@ test('line marks every point with its slice key for drill-down', () => {
   assert.match(svg, /data-slice-key="2026-08"/);
 });
 
-import { renderLine as renderLineForBaseline } from '../web/charts/chart-line.js';
-import { renderTable as renderTableForBaseline } from '../web/charts/chart-table.js';
-
 const monthResult = (rows) => ({ rows, total: 0, stats: {}, meta: { sliceBy: 'month', measure: 'sum' } });
 
 test('the line chart draws a dashed baseline series when rows carry a baseline', () => {
@@ -259,4 +258,29 @@ test('the table adds a delta column only when a baseline exists', () => {
     { key: '2026-08', label: 'Aug 2026', value: -340, count: 2, stats: { txnCount: 2, median: -170, largest: -300, top3Share: 1 }, baseline: null, delta: null, deltaPct: null }
   ]));
   assert.equal(without.includes('>Δ<'), false);
+});
+
+// Fix-pass test (finding 2): the last-point delta label must stay inside
+// the declared viewBox even when that point sits at the domain maximum.
+test('finding 2: the last-point delta label stays inside the viewBox when the last point is the domain max', () => {
+  // A single row whose own magnitude sets the y-domain (baseline is smaller)
+  // puts the point at the very top of the plot — PAD.top, y=16 — which is
+  // exactly where an unclamped "y - 26" label goes negative.
+  const svg = renderLineForBaseline(monthResult([
+    { key: '2026-08', label: 'Aug 2026', value: -500, count: 3, baseline: -100, delta: 400, deltaPct: 4 }
+  ]));
+
+  const deltaMatch = svg.match(/x="([\d.]+)" y="(-?[\d.]+)" text-anchor="end" class="viz-delta[^"]*"/);
+  assert.ok(deltaMatch, 'expected a delta label');
+  const deltaY = Number(deltaMatch[2]);
+  assert.ok(deltaY >= 0, `delta label y=${deltaY} is outside the viewBox (< 0)`);
+
+  // It must also not land on top of the existing end-of-series value label,
+  // which is drawn at the same x, y = point.y - 10. (A single-point chart
+  // labels its lone point as the series start, so the anchor is "start".)
+  const valueMatch = svg.match(/x="([\d.]+)" y="([\d.]+)" text-anchor="(?:start|end)" class="viz-value"/);
+  assert.ok(valueMatch, 'expected an end-of-series value label');
+  const valueY = Number(valueMatch[2]);
+  assert.ok(Math.abs(deltaY - valueY) >= 8,
+    `delta label (y=${deltaY}) is too close to the value label (y=${valueY})`);
 });

@@ -5,7 +5,12 @@ const ROW_HEIGHT = 34;
 const BAR_HEIGHT = 16;      // thin marks
 const LABEL_WIDTH = 150;
 const VALUE_WIDTH = 96;
-const DELTA_WIDTH = 74;     // only reserved when a comparison is active
+// The delta column holds formatDelta's output, which for an isNew row (no
+// baseline to take a percentage of) falls back to an arrow-prefixed money
+// string ("▲ $12,345.67") — never shorter than the plain value string next
+// to it. Give it at least as much room as the value column, plus space for
+// the "▲ " prefix and a visible gap so the two columns never touch.
+const DELTA_WIDTH = VALUE_WIDTH + 18; // only reserved when a comparison is active
 const GAP = 2;              // 2px surface gap between adjacent fills
 
 /**

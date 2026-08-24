@@ -193,3 +193,35 @@ test('a row with a zero baseline still renders without a ghost bar of negative w
   assert.equal(svg.includes('width="-'), false);
   assert.match(svg, /▲ \$40\.00/);
 });
+
+// Fix-pass tests (finding 1): the delta column must not be narrower than
+// the value column when its content is at least as long.
+const VALUE_COLUMN_WIDTH = 96; // must match VALUE_WIDTH in chart-bar.js
+
+test('finding 1: an isNew delta with no baseline percentage does not collide with the value column', () => {
+  // No prior-period spend to divide by, so formatDelta falls back to an
+  // absolute money string ("▲ $12,345.67") instead of a percentage — the
+  // longest realistic content the delta column has to hold.
+  const measure = 'sum';
+  const row = { key: 'shopping', label: 'Shopping', value: -12345.67, count: 4, baseline: 0, delta: 12345.67, deltaPct: null };
+  const svg = renderBar(withBaseline([row]));
+
+  const valueText = formatMeasure(row.value, measure);
+  const deltaText = formatDelta(row.delta, row.deltaPct, measure);
+  // formatDelta's isNew fallback is formatMeasure() with an "arrow + space"
+  // prefix, so for a comparable magnitude the delta string can never be
+  // shorter than the value string. The fixture sanity-checks that premise so
+  // the geometry assertion below is not resting on an accident of formatting.
+  assert.ok(deltaText.length >= valueText.length,
+    `fixture premise broken: expected the delta string to be at least as long as the value string (${JSON.stringify({ valueText, deltaText })})`);
+
+  const width = Number(svg.match(/viewBox="0 0 (\d+)/)[1]);
+  const valueXMatch = svg.match(/x="([\d.]+)" y="[\d.]+" text-anchor="end" class="viz-value"/);
+  assert.ok(valueXMatch, 'expected a value text element');
+  const valueX = Number(valueXMatch[1]);
+  // The delta column occupies everything right of the value text's anchor.
+  const deltaColumnWidth = width - valueX;
+
+  assert.ok(deltaColumnWidth >= VALUE_COLUMN_WIDTH,
+    `delta column (${deltaColumnWidth}px) is narrower than the value column (${VALUE_COLUMN_WIDTH}px) despite holding equal-or-longer content — an oversized delta string will grow left into the value column`);
+});

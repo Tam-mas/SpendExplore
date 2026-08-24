@@ -72,7 +72,16 @@ export function renderLine(result, { title = '', colourFor } = {}) {
 
   const lastRow = rows.at(-1);
   const lastDelta = hasBaseline && points.length
-    ? `<text x="${points.at(-1).x.toFixed(1)}" y="${(points.at(-1).y - 26).toFixed(1)}" text-anchor="end" class="${deltaClass(lastRow.delta)}">${escapeHtml(formatDelta(lastRow.delta, lastRow.deltaPct, measure))}</text>`
+    ? (() => {
+        const p = points.at(-1);
+        // Normally sits 26px above the point, level with the value label
+        // 16px further up. A point near the top of the domain pushes that
+        // above y=0 — off the declared viewBox — so flip it below the point
+        // instead of clamping, which keeps it clear of the value label
+        // regardless of how close the point sits to the top.
+        const y = p.y - 26 < 0 ? p.y + 18 : p.y - 26;
+        return `<text x="${p.x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="end" class="${deltaClass(lastRow.delta)}">${escapeHtml(formatDelta(lastRow.delta, lastRow.deltaPct, measure))}</text>`;
+      })()
     : '';
 
   return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${width} ${HEIGHT}" width="${width}" class="viz-line">${grid}${baselineLine}${polyline}${markers}${endLabels}${lastDelta}${xLabels}</svg>`;
