@@ -218,3 +218,45 @@ test('line marks every point with its slice key for drill-down', () => {
   assert.match(svg, /data-slice-key="2026-07"/);
   assert.match(svg, /data-slice-key="2026-08"/);
 });
+
+import { renderLine as renderLineForBaseline } from '../web/charts/chart-line.js';
+import { renderTable as renderTableForBaseline } from '../web/charts/chart-table.js';
+
+const monthResult = (rows) => ({ rows, total: 0, stats: {}, meta: { sliceBy: 'month', measure: 'sum' } });
+
+test('the line chart draws a dashed baseline series when rows carry a baseline', () => {
+  const svg = renderLineForBaseline(monthResult([
+    { key: '2026-07', label: 'Jul 2026', value: -200, count: 1, baseline: -150, delta: 50, deltaPct: 0.33 },
+    { key: '2026-08', label: 'Aug 2026', value: -340, count: 2, baseline: -175, delta: 165, deltaPct: 0.94 }
+  ]));
+  assert.match(svg, /class="viz-ghost-line"/);
+  assert.match(svg, /stroke-dasharray/);
+});
+
+test('the line chart draws no baseline series without baselines', () => {
+  const svg = renderLineForBaseline(monthResult([
+    { key: '2026-08', label: 'Aug 2026', value: -340, count: 2, baseline: null, delta: null, deltaPct: null }
+  ]));
+  assert.equal(svg.includes('viz-ghost-line'), false);
+});
+
+test('the line chart y-domain covers a baseline higher than every point', () => {
+  const svg = renderLineForBaseline(monthResult([
+    { key: '2026-08', label: 'Aug 2026', value: -50, count: 1, baseline: -900, delta: -850, deltaPct: -0.94 }
+  ]));
+  const ys = [...svg.matchAll(/cy="([\d.]+)"/g)].map((m) => Number(m[1]));
+  assert.ok(ys.every((y) => y >= 0), `a marker was plotted above the viewBox: ${ys}`);
+});
+
+test('the table adds a delta column only when a baseline exists', () => {
+  const withBaseline = renderTableForBaseline(monthResult([
+    { key: '2026-08', label: 'Aug 2026', value: -340, count: 2, stats: { txnCount: 2, median: -170, largest: -300, top3Share: 1 }, baseline: -175, delta: 165, deltaPct: 0.94 }
+  ]));
+  assert.match(withBaseline, /<th scope="col" class="num">Δ<\/th>/);
+  assert.match(withBaseline, /▲ 94%/);
+
+  const without = renderTableForBaseline(monthResult([
+    { key: '2026-08', label: 'Aug 2026', value: -340, count: 2, stats: { txnCount: 2, median: -170, largest: -300, top3Share: 1 }, baseline: null, delta: null, deltaPct: null }
+  ]));
+  assert.equal(without.includes('>Δ<'), false);
+});

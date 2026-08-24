@@ -1,4 +1,5 @@
 import { linearScale, niceTicks, formatMeasure, escapeHtml } from './scale.js';
+import { formatDelta, deltaClass } from '../delta.js';
 
 const WIDTH = 600;
 const HEIGHT = 220;
@@ -26,7 +27,10 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   const width = Math.max(WIDTH, PAD.left + PAD.right + minPlotW);
   const plotW = width - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
-  const maxValue = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
+  const hasBaseline = rows.some((r) => r.baseline !== null && r.baseline !== undefined);
+  // The domain covers baselines too, so a collapsed month's baseline line does
+  // not run off the top of the plot.
+  const maxValue = Math.max(...rows.map((r) => Math.max(Math.abs(r.value), Math.abs(r.baseline ?? 0))), 1);
   const yScale = linearScale(maxValue, plotH);
   const stepX = rows.length > 1 ? plotW / (rows.length - 1) : 0;
 
@@ -45,6 +49,11 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   const measure = result.meta?.measure;
   const polyline = `<polyline points="${points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="${colour}" stroke-width="2" stroke-linejoin="round"/>`;
 
+  // Drawn before the solid series so the real values always sit on top.
+  const baselineLine = hasBaseline
+    ? `<polyline points="${rows.map((row, i) => `${(PAD.left + i * stepX).toFixed(1)},${(PAD.top + plotH - yScale(row.baseline ?? 0)).toFixed(1)}`).join(' ')}" fill="none" stroke="${colour}" stroke-width="1.5" stroke-dasharray="4 3" class="viz-ghost-line"/>`
+    : '';
+
   const markers = points.map((p, i) => {
     const isEnd = i === 0 || i === points.length - 1;
     const title = isEnd ? `<title>${escapeHtml(p.row.label)}: ${formatMeasure(p.row.value, measure)}</title>` : '';
@@ -61,5 +70,10 @@ export function renderLine(result, { title = '', colourFor } = {}) {
     `<text x="${p.x.toFixed(1)}" y="${HEIGHT - 8}" text-anchor="middle" class="viz-label">${escapeHtml(p.row.label)}</text>`
   ).join('');
 
-  return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${width} ${HEIGHT}" width="${width}" class="viz-line">${grid}${polyline}${markers}${endLabels}${xLabels}</svg>`;
+  const lastRow = rows.at(-1);
+  const lastDelta = hasBaseline && points.length
+    ? `<text x="${points.at(-1).x.toFixed(1)}" y="${(points.at(-1).y - 26).toFixed(1)}" text-anchor="end" class="${deltaClass(lastRow.delta)}">${escapeHtml(formatDelta(lastRow.delta, lastRow.deltaPct, measure))}</text>`
+    : '';
+
+  return `<svg role="img" aria-label="${escapeHtml(title)}" viewBox="0 0 ${width} ${HEIGHT}" width="${width}" class="viz-line">${grid}${baselineLine}${polyline}${markers}${endLabels}${lastDelta}${xLabels}</svg>`;
 }
