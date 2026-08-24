@@ -68,7 +68,6 @@ export function aggregateOverview(snapshot) {
 
 import { createPanel } from './panel.js';
 import { renderFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
-import { query } from '../lib/query/query.js';
 import { compareQuery } from '../lib/query/compare.js';
 import { deltaChip } from './delta.js';
 import { BASELINE_MODES } from '../lib/query/periods.js';
