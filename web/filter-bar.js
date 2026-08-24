@@ -1,5 +1,6 @@
 import { escapeHtml } from './charts/scale.js';
 import { JOINT } from '../lib/query/filter.js';
+import { BASELINE_MODES, BASELINE_LABELS } from '../lib/query/periods.js';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -53,15 +54,31 @@ const select = (name, label, options, current, allLabel) => `
 /**
  * The global filter bar. Its values are the `filters` half of a query spec, so
  * they compose with each panel's own filters with no special-casing.
+ *
+ * `compareMode` is the one control here that is NOT a filter — it selects a
+ * baseline rather than narrowing the data, so it is passed separately and
+ * deliberately never reaches toQueryFilters().
  */
-export function renderFilterBar(snapshot, filters = {}) {
+export function renderFilterBar(snapshot, filters = {}, compareMode = 'off') {
   const options = filterOptions(snapshot);
+  const mode = BASELINE_MODES.includes(compareMode) ? compareMode : 'off';
+  const compareOptions = BASELINE_MODES
+    .filter((m) => m !== 'off')
+    .map((m) => ({ value: m, label: BASELINE_LABELS[m] }));
+
   return `
   <div class="viz-filter-bar">
     ${select('month', 'Period', options.months, filters.month ?? '', 'All time')}
     ${select('accountIds', 'Account', options.accounts, (filters.accountIds ?? [])[0] ?? '', 'All accounts')}
     ${select('people', 'Person', options.people, (filters.people ?? [])[0] ?? '', 'Both of us')}
     ${select('groupIds', 'Group', options.groups, (filters.groupIds ?? [])[0] ?? '', 'All groups')}
+    <label class="viz-control">
+      <span class="viz-control-label">Compare</span>
+      <select data-filter="compare">
+        <option value="off"${mode === 'off' ? ' selected' : ''}>${escapeHtml(BASELINE_LABELS.off)}</option>
+        ${compareOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === mode ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+      </select>
+    </label>
   </div>`;
 }
 
@@ -81,9 +98,16 @@ export function toQueryFilters(filters = {}) {
   return spec;
 }
 
-/** Read the live filter bar back into a filters object. */
+/** Read the live filter bar back into a filters object, plus the comparison mode. */
 export function readFilterBar(root) {
   const value = (name) => root.querySelector(`[data-filter="${name}"]`)?.value ?? '';
   const one = (name) => (value(name) ? [value(name)] : []);
-  return { month: value('month'), accountIds: one('accountIds'), people: one('people'), groupIds: one('groupIds') };
+  const compare = value('compare');
+  return {
+    month: value('month'),
+    accountIds: one('accountIds'),
+    people: one('people'),
+    groupIds: one('groupIds'),
+    compare: BASELINE_MODES.includes(compare) ? compare : 'off'
+  };
 }

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterOptions, renderFilterBar } from '../web/filter-bar.js';
+import { filterOptions, renderFilterBar, toQueryFilters } from '../web/filter-bar.js';
+import { BASELINE_LABELS } from '../lib/query/periods.js';
 
 const SNAPSHOT = {
   categories: {
@@ -72,4 +73,35 @@ test('renderFilterBar escapes account labels', () => {
 
 test('renderFilterBar references no external host', () => {
   assert.doesNotMatch(renderFilterBar(SNAPSHOT, {}), /https?:\/\/(?!127\.0\.0\.1|localhost)/);
+});
+
+const SNAPSHOT_FOR_COMPARE = {
+  transactions: [{ date: '2026-08-10' }],
+  accounts: [],
+  categories: { groups: [{ id: 'food-drink', label: 'Food & Drink' }], categories: [] }
+};
+
+test('the filter bar renders a comparison control with every baseline mode', () => {
+  const html = renderFilterBar(SNAPSHOT_FOR_COMPARE, {}, 'off');
+  assert.match(html, /data-filter="compare"/);
+  for (const label of Object.values(BASELINE_LABELS)) {
+    assert.ok(html.includes(label), `missing option: ${label}`);
+  }
+});
+
+test('the comparison control marks the current mode as selected', () => {
+  const html = renderFilterBar(SNAPSHOT_FOR_COMPARE, {}, 'trailing3');
+  assert.match(html, /value="trailing3" selected/);
+  assert.equal(/value="prevPeriod" selected/.test(html), false);
+});
+
+test('the comparison control defaults to off when given an unknown mode', () => {
+  const html = renderFilterBar(SNAPSHOT_FOR_COMPARE, {}, 'nonsense');
+  assert.match(html, /value="off" selected/);
+});
+
+test('toQueryFilters never leaks the comparison mode into a query spec', () => {
+  const spec = toQueryFilters({ month: '2026-08', compare: 'trailing3' });
+  assert.equal(spec.compare, undefined);
+  assert.equal(spec.dateFrom, '2026-08-01');
 });
