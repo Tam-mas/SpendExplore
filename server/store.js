@@ -15,7 +15,15 @@ const COLLECTIONS = {
   ledger:     { file: 'ledger.json',     seed: () => [] },
   categories: { file: 'categories.json', seedFile: 'categories.json' },
   rules:      { file: 'rules.json',      seedFile: 'rules.json' },
+  // `accounts` is never written by any route today — every ingested
+  // transaction gets accountId: 'default' with no matching record — so the
+  // filter bar's Account and Person dropdowns are permanently empty/inert.
+  // Left as-is (a known gap, not a bug): building account management is a
+  // separate feature, not a fix.
   accounts:   { file: 'accounts.json',   seed: () => [] },
+  // `views` (saved named views) is shipped in every GET /api/snapshot but
+  // has no frontend consumer yet — noted future work ("Plan 3"), not dead
+  // code to remove.
   views:      { file: 'views.json',      seed: () => [] },
   imports:    { file: 'imports.json',    seed: () => [] },
   budgets:    { file: 'budgets.json',    seed: () => [] }

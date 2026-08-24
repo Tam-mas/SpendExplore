@@ -56,12 +56,17 @@ function validateCategoryBody(body) {
  * router, matching the same fall-through contract as createImportRoutes.
  */
 export function createTransactionRoutes(store, serialized) {
-  async function handlePatch(req, res, id) {
-    const raw = await readBody(req);
-    const shapeCheck = validatePatchShape(raw);
-    if (shapeCheck.error) return sendJson(res, 400, { error: shapeCheck.error });
-    const body = shapeCheck.body;
-
+  // `body` arrives already read and shape-validated by the caller — see
+  // server/routes/budgets.js's handleCreate for why readBody() must never
+  // run inside `serialized`.
+  //
+  // body.applyToPast/rememberRule below are fully implemented but currently
+  // unreachable: no UI calls patchTransaction() with either field set today
+  // (the drill-down recategorise controls only ever send { categoryId }).
+  // The equivalent bulk-apply/remember-rule behaviour IS reachable, via
+  // POST /api/transactions/bulk from the Review tab. Left as-is — a gap in
+  // the drill-down UI, not dead code to remove.
+  async function handlePatch(res, id, body) {
     const ledger = await store.read('ledger');
     const index = ledger.findIndex((t) => t.id === id);
     if (index === -1) return sendJson(res, 404, { error: 'Transaction not found' });
@@ -162,12 +167,8 @@ export function createTransactionRoutes(store, serialized) {
     return sendJson(res, 200, { transaction: updated, updatedPast, ruleAdded });
   }
 
-  async function handleCreateCategory(req, res) {
-    const raw = await readBody(req);
-    const validated = validateCategoryBody(raw);
-    if (validated.error) return sendJson(res, 400, { error: validated.error });
-    const body = validated.body;
-
+  // `body` arrives already read and shape-validated by the caller.
+  async function handleCreateCategory(res, body) {
     const data = await store.read('categories');
     if (!data.groups.some((g) => g.id === body.groupId)) {
       return sendJson(res, 400, { error: `Unknown group: ${body.groupId}` });
@@ -192,13 +193,21 @@ export function createTransactionRoutes(store, serialized) {
   return function handleTransactionRoute(req, res, pathname) {
     const txnMatch = pathname.match(TXN_ID_RE);
     if (req.method === 'PATCH' && txnMatch) {
-      return serialized(() => handlePatch(req, res, txnMatch[1]));
+      return (async () => {
+        const shapeCheck = validatePatchShape(await readBody(req));
+        if (shapeCheck.error) return sendJson(res, 400, { error: shapeCheck.error });
+        return serialized(() => handlePatch(res, txnMatch[1], shapeCheck.body));
+      })();
     }
     if (req.method === 'POST' && pathname === '/api/categories') {
-      return serialized(() => handleCreateCategory(req, res));
+      return (async () => {
+        const validated = validateCategoryBody(await readBody(req));
+        if (validated.error) return sendJson(res, 400, { error: validated.error });
+        return serialized(() => handleCreateCategory(res, validated.body));
+      })();
     }
     if (req.method === 'POST' && pathname === '/api/transactions/bulk') {
-      return serialized(async () => {
+      return (async () => {
         const body = await readBody(req);
         const ids = body?.ids;
         const categoryId = body?.categoryId;
@@ -210,60 +219,62 @@ export function createTransactionRoutes(store, serialized) {
           return sendJson(res, 400, { error: 'categoryId is required' });
         }
 
-        const { categories } = await store.read('categories');
-        if (!categories.some((c) => c.id === categoryId)) {
-          return sendJson(res, 400, { error: `Unknown category: ${categoryId}` });
-        }
-
-        const ledger = await store.read('ledger');
-        const wanted = new Set(ids);
-        const matched = new Set();
-        const next = [...ledger];
-        let updated = 0;
-
-        for (let i = 0; i < next.length; i++) {
-          if (!wanted.has(next[i].id)) continue;
-          // An explicit selection is a hand decision, so it is 'manual'.
-          next[i] = { ...next[i], categoryId, categorySource: 'manual' };
-          matched.add(next[i].id);
-          updated++;
-        }
-        const notFound = [...wanted].filter((id) => !matched.has(id)).length;
-
-        // The merchant to group on comes from the first id that actually exists.
-        const anchor = next.find((t) => wanted.has(t.id));
-        const merchant = anchor?.merchant ?? '';
-        // 'Unknown' is a placeholder for undecipherable descriptions, not a real
-        // merchant — grouping on it would sweep unrelated transactions together.
-        const canGroup = Boolean(merchant) && merchant !== 'Unknown';
-
-        let updatedPast = 0;
-        if (body?.applyToPast === true && canGroup) {
-          for (let i = 0; i < next.length; i++) {
-            const txn = next[i];
-            if (wanted.has(txn.id) || txn.merchant !== merchant) continue;
-            if (txn.categorySource === 'manual') continue;   // never overwrite a hand decision
-            next[i] = { ...txn, categoryId, categorySource: 'bulk' };
-            updatedPast++;
+        return serialized(async () => {
+          const { categories } = await store.read('categories');
+          if (!categories.some((c) => c.id === categoryId)) {
+            return sendJson(res, 400, { error: `Unknown category: ${categoryId}` });
           }
-        }
 
-        if (updated > 0 || updatedPast > 0) {
-          await store.backup();
-          await store.write('ledger', next);
-        }
+          const ledger = await store.read('ledger');
+          const wanted = new Set(ids);
+          const matched = new Set();
+          const next = [...ledger];
+          let updated = 0;
 
-        let ruleAdded = false;
-        if (body?.rememberRule === true && canGroup) {
-          const value = merchant.toLowerCase().trim();
-          const rules = await store.read('rules');
-          const without = rules.filter((r) => !(r.match === 'exact' && r.value === value));
-          await store.write('rules', [{ match: 'exact', value, categoryId }, ...without]);
-          ruleAdded = true;
-        }
+          for (let i = 0; i < next.length; i++) {
+            if (!wanted.has(next[i].id)) continue;
+            // An explicit selection is a hand decision, so it is 'manual'.
+            next[i] = { ...next[i], categoryId, categorySource: 'manual' };
+            matched.add(next[i].id);
+            updated++;
+          }
+          const notFound = [...wanted].filter((id) => !matched.has(id)).length;
 
-        return sendJson(res, 200, { updated, updatedPast, notFound, ruleAdded });
-      });
+          // The merchant to group on comes from the first id that actually exists.
+          const anchor = next.find((t) => wanted.has(t.id));
+          const merchant = anchor?.merchant ?? '';
+          // 'Unknown' is a placeholder for undecipherable descriptions, not a real
+          // merchant — grouping on it would sweep unrelated transactions together.
+          const canGroup = Boolean(merchant) && merchant !== 'Unknown';
+
+          let updatedPast = 0;
+          if (body?.applyToPast === true && canGroup) {
+            for (let i = 0; i < next.length; i++) {
+              const txn = next[i];
+              if (wanted.has(txn.id) || txn.merchant !== merchant) continue;
+              if (txn.categorySource === 'manual') continue;   // never overwrite a hand decision
+              next[i] = { ...txn, categoryId, categorySource: 'bulk' };
+              updatedPast++;
+            }
+          }
+
+          if (updated > 0 || updatedPast > 0) {
+            await store.backup();
+            await store.write('ledger', next);
+          }
+
+          let ruleAdded = false;
+          if (body?.rememberRule === true && canGroup) {
+            const value = merchant.toLowerCase().trim();
+            const rules = await store.read('rules');
+            const without = rules.filter((r) => !(r.match === 'exact' && r.value === value));
+            await store.write('rules', [{ match: 'exact', value, categoryId }, ...without]);
+            ruleAdded = true;
+          }
+
+          return sendJson(res, 200, { updated, updatedPast, notFound, ruleAdded });
+        });
+      })();
     }
     return false;
   };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetStatus, allBudgetStatuses, currentMonthKey } from '../lib/budgets.js';
+import { budgetStatus, allBudgetStatuses, groupBudgetStatus, allGroupBudgetStatuses, currentMonthKey } from '../lib/budgets.js';
 
 const t = (over) => ({
   id: 'x', date: '2026-08-10', amount: -10, rawDescription: 'R', merchant: 'M',
@@ -147,4 +147,94 @@ test('a later actual month still wins over an earlier one when they are not a ti
   };
   assert.equal(budgetStatus(snap, 'travel', '2026-07').allocation, 500); // June's entry still in effect in July
   assert.equal(budgetStatus(snap, 'travel', '2026-08').allocation, 600); // August's entry now in effect
+});
+
+// --- Group budgets ---
+
+const GROUP_SNAPSHOT = {
+  categories: {
+    groups: [{ id: 'food-drink', label: 'Food & Drink' }, { id: 'transport', label: 'Transport' }],
+    categories: [
+      { id: 'groceries', label: 'Groceries', groupId: 'food-drink' },
+      { id: 'coffee', label: 'Coffee', groupId: 'food-drink' },
+      { id: 'fuel', label: 'Fuel', groupId: 'transport' }
+    ]
+  },
+  budgets: [
+    { id: 'g1', groupId: 'food-drink', amount: 400, effectiveFrom: '2026-08' }
+  ],
+  transactions: [
+    { id: '1', date: '2026-08-05', amount: -100, categoryId: 'groceries', excluded: false },
+    { id: '2', date: '2026-08-10', amount: -30, categoryId: 'coffee', excluded: false },
+    // Different group entirely — must not count toward the food-drink group's spend.
+    { id: '3', date: '2026-08-12', amount: -50, categoryId: 'fuel', excluded: false }
+  ]
+};
+
+test('groupBudgetStatus sums spend across every category in the group, not just one', () => {
+  const status = groupBudgetStatus(GROUP_SNAPSHOT, 'food-drink', '2026-08');
+  assert.equal(status.spend, 130); // 100 (groceries) + 30 (coffee); fuel excluded
+  assert.equal(status.allocation, 400);
+  assert.equal(status.status, 'on-track');
+});
+
+test('groupBudgetStatus rolls over unspent amounts across months, same as a category', () => {
+  const snap = {
+    ...GROUP_SNAPSHOT,
+    budgets: [{ id: 'g1', groupId: 'food-drink', amount: 400, effectiveFrom: '2026-07' }],
+    transactions: [
+      { id: '1', date: '2026-07-05', amount: -100, categoryId: 'groceries', excluded: false },
+      { id: '2', date: '2026-08-10', amount: -130, categoryId: 'coffee', excluded: false }
+    ]
+  };
+  const status = groupBudgetStatus(snap, 'food-drink', '2026-08');
+  // Jul: 400-100=300. Aug: 400-130=270. Total: 570.
+  assert.equal(status.balance, 570);
+});
+
+test('a group never budgeted returns null', () => {
+  assert.equal(groupBudgetStatus(GROUP_SNAPSHOT, 'transport', '2026-08'), null);
+});
+
+test('a group budget is independent of a category budget inside the same group', () => {
+  const layered = {
+    ...GROUP_SNAPSHOT,
+    budgets: [
+      { id: 'g1', groupId: 'food-drink', amount: 400, effectiveFrom: '2026-08' },
+      { id: 'c1', categoryId: 'groceries', amount: 50, effectiveFrom: '2026-08' } // deliberately tiny vs. the 100 spent
+    ]
+  };
+  const groupStatus = groupBudgetStatus(layered, 'food-drink', '2026-08');
+  const categoryStatus = budgetStatus(layered, 'groceries', '2026-08');
+
+  // The group's own envelope only ever sees its own $400 allocation and the
+  // combined $130 group spend — the groceries category being over its own,
+  // separate $50 budget has no effect on it.
+  assert.equal(groupStatus.allocation, 400);
+  assert.equal(groupStatus.spend, 130);
+  assert.equal(groupStatus.status, 'on-track');
+
+  assert.equal(categoryStatus.allocation, 50);
+  assert.equal(categoryStatus.spend, 100);
+  assert.equal(categoryStatus.status, 'over');
+});
+
+test('allGroupBudgetStatuses returns one row per budgeted group', () => {
+  const rows = allGroupBudgetStatuses(GROUP_SNAPSHOT, '2026-08');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].groupId, 'food-drink');
+  assert.equal(rows[0].hasAllocationForMonth, true);
+});
+
+test('allBudgetStatuses ignores group-scoped entries (categoryId: null)', () => {
+  const mixed = {
+    ...GROUP_SNAPSHOT,
+    budgets: [
+      { id: 'g1', groupId: 'food-drink', categoryId: null, amount: 400, effectiveFrom: '2026-08' },
+      { id: 'c1', groupId: null, categoryId: 'fuel', amount: 100, effectiveFrom: '2026-08' }
+    ]
+  };
+  const rows = allBudgetStatuses(mixed, '2026-08');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].categoryId, 'fuel');
 });

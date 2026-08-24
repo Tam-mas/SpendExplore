@@ -161,24 +161,3 @@ export function createPanel(initial = {}) {
 
   return panel;
 }
-
-/**
- * Attach the panel's controls to a live DOM node. Re-renders on any change and
- * notifies the caller so panel state can be persisted.
- */
-export function mount(panel, root, { snapshot, globalFilters = {}, onChange } = {}) {
-  const draw = () => { root.innerHTML = panel.html(snapshot, globalFilters); };
-  draw();
-
-  root.addEventListener('change', (event) => {
-    const control = event.target?.dataset?.panelControl;
-    if (!control) return;
-    if (control === 'sliceBy') panel.setSlice(event.target.value);
-    else if (control === 'measure') panel.setMeasure(event.target.value);
-    else if (control === 'chartType') panel.setChart(event.target.value);
-    draw();
-    onChange?.(panel.config);
-  });
-
-  return { redraw: draw };
-}

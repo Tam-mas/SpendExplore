@@ -25,4 +25,5 @@ export const patchTransaction = (id, payload) =>
 
 export const bulkCategorise = (payload) => postJson('/api/transactions/bulk', payload);
 export const createCategory  = (payload) => postJson('/api/categories', payload);
-export const postBudget      = (categoryId, amount) => postJson('/api/budgets', { categoryId, amount });
+// `target` is `{ categoryId }` or `{ groupId }` — exactly one of the two.
+export const postBudget      = (target, amount) => postJson('/api/budgets', { ...target, amount });

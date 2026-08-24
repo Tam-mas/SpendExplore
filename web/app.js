@@ -3,6 +3,7 @@ import { renderImportView } from './import-view.js';
 import { mountOverview } from './overview-view.js';
 import { mountReview } from './review-view.js';
 import { mountBudgets } from './budgets-view.js';
+import { guard } from './errors.js';
 
 const views = {
   overview: document.querySelector('#view-overview'),
@@ -16,16 +17,29 @@ const budgetsDrilldownRoot = document.querySelector('#budgets-drilldown');
 let overview = null;
 let review = null;
 let budgets = null;
+// Guards against two refresh() calls running concurrently — each drives an
+// independent chain of per-view getSnapshot() calls, and without this, two
+// overlapping calls could resolve out of order with no guarantee the more
+// recent one wins.
+let refreshing = false;
 
 async function refresh() {
-  const snapshot = await getSnapshot();
-  if (overview) await overview.refresh();
-  else overview = mountOverview(views.overview, { snapshot, drilldownRoot });
-  if (review) await review.refresh();
-  else review = mountReview(views.review, { snapshot });
-  if (budgets) await budgets.refresh();
-  else budgets = mountBudgets(views.budgets, { snapshot, drilldownRoot: budgetsDrilldownRoot });
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const snapshot = await getSnapshot();
+    if (overview) await overview.refresh();
+    else overview = mountOverview(views.overview, { snapshot, drilldownRoot });
+    if (review) await review.refresh();
+    else review = mountReview(views.review, { snapshot });
+    if (budgets) await budgets.refresh();
+    else budgets = mountBudgets(views.budgets, { snapshot, drilldownRoot: budgetsDrilldownRoot });
+  } finally {
+    refreshing = false;
+  }
 }
+
+const guardedRefresh = guard(refresh);
 
 function showTab(name) {
   for (const [key, element] of Object.entries(views)) element.classList.toggle('hidden', key !== name);
@@ -46,8 +60,8 @@ document.querySelector('#tabs').addEventListener('click', (event) => {
 });
 
 renderImportView(views.import, {
-  onImported: async () => { await refresh(); showTab('overview'); }
+  onImported: async () => { await guardedRefresh(); showTab('overview'); }
 });
 
-await refresh();
+await guardedRefresh();
 showTab('overview');

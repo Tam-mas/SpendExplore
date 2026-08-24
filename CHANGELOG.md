@@ -1,5 +1,47 @@
 # Changelog
 
+### [2026-08-24 06:10] Added
+
+**Tech:** `lib/budgets.js` — new `groupBudgetStatus()`/`allGroupBudgetStatuses()`, sharing a generalized `computeStatus()`/`allocationEntryFor(budgets, field, id, month)` with the existing category functions (signatures of `budgetStatus`/`allBudgetStatuses` unchanged); `server/routes/budgets.js` — `POST /api/budgets` accepts `groupId` as an alternative to `categoryId` (exactly one required), validates the group exists and has at least one assignable category (rejects the seed `"other"` group, same reasoning as rejecting `income`/`uncategorised`); `web/api.js:postBudget(target, amount)` — takes `{categoryId}` or `{groupId}`; `web/budgets-view.js` — the group-header row in the Budgets table is now interactive (`budgetRow()` shared helper), with its own Add/Edit/Save/Cancel and a drill-down via `sliceBy: 'group'`. `tests/budgets.test.js`, `tests/budget-routes.test.js`, `tests/budgets-view.test.js` — new coverage.
+**Dev:** A group budget is deliberately independent of whatever its individual categories are budgeting — no mutual exclusivity, no double-counting logic, just two separate envelopes that happen to both draw from the same underlying transactions (verified live: a $400 Food & Drink group budget stayed "On track" while a $50 Groceries category budget inside it read "Over", off the same $64.15 spend). Uses the same rollover/envelope model as category budgets. `budgets.json` entries now carry both `categoryId` and `groupId` (exactly one non-null); older entries with no `groupId` key behave identically to `groupId: null`, so no migration was needed.
+**Plain:** You can now set a budget on a whole category group (like "Food & Drink"), not just individual categories — it rolls over month to month the same way, and works alongside any budgets you've already set on categories inside that group.
+**Why:** wanted a higher-level budget for a whole spending area without having to budget every category in it individually, or losing the ability to still budget specific ones tightly.
+
+### [2026-08-24 04:30] Fixed
+
+**Tech:** `web/import-view.js` — `renderPreviews(cards, files)` now closes over the batch that produced it instead of reading a shared outer `pending`, plus a `busy` re-entrancy guard on the dropzone/picker; `web/overview-view.js:kpiRow()` — added `!t.excluded`; `server/routes/budgets.js` — rejects `categoryId` in `lib/review.js`'s newly-exported `NON_ASSIGNABLE`; `web/import-view.js:renderPreviews()` — guards `card.format` before reading it. `tests/budget-routes.test.js`, `tests/overview-panels.test.js` — new cases.
+**Dev:** The import-view fix closes a real data-integrity hole: dropping a second file batch before the first finished reading could make "Confirm and import" commit the wrong file's transactions, because the confirm handler read a shared mutable variable instead of the batch it was rendered for. Verified in a live browser session (isolated `data-test`, not real data) that a drop now sets `busy` synchronously and a malformed/empty file no longer throws. The KPI and budgets fixes close two smaller correctness gaps found in the same review pass.
+**Plain:** Fixed a bug where dropping two CSV files in quick succession could import the wrong one's transactions; fixed the "Needs review" counter never reaching zero after excluding everything; fixed budgets silently accepting "Income" or "Uncategorised" as a real budget category.
+**Why:** a full code review turned up real correctness bugs touching the actual ledger data — worth fixing promptly given how much this app leans on getting imports right the first time.
+
+### [2026-08-24 04:30] Security
+
+**Tech:** `lib/format-sniff.js:parseAmount()` — length cap (32 chars) plus an unambiguous regex replacing `/^\d*\.?\d+$/`; `server/routes/budgets.js`, `import.js`, `transactions.js` — `readBody()` and request-shape validation now run *before* the request enters the shared `serialized()` mutation gate, not inside it. `tests/format-sniff.test.js`, `tests/mutation-gate.test.js` (new) — regression coverage.
+**Dev:** The old amount regex backtracked quadratically on a long run of digits that ultimately failed to match — a large malformed CSV cell (accidental or not) could freeze the single-threaded server for minutes. Separately, every write route was awaiting the client's request body *inside* the one mutation gate every write in the app queues behind; a slow or stalled connection there wedged every other write until the connection timed out. Both were fixed; other findings from the same review (CSRF/origin checking, DNS-rebinding via missing Host validation, missing CSP headers, no upload concurrency limit) are known and deliberately deferred — they need an active attacker and this app is local-only — not fixed in this pass.
+**Plain:** Fixed a way a bad or oversized bank CSV field could freeze the whole app, and a way one stalled connection could silently block every other save from going through.
+**Why:** these could happen by accident, not just from someone attacking the app, so they were worth closing now rather than leaving for later.
+
+### [2026-08-24 04:30] Fixed
+
+**Tech:** `web/charts/chart-dots.js` — `Math.max(...magnitudes) || 1` replaces the unconditional `Math.max(...magnitudes, 1)` floor; `web/overview-view.js`, `web/budgets-view.js` — `reassign()` now tracks a `reassignToken` and discards a `getSnapshot()` result if a newer `reassign()` call has started since. `tests/charts-dots.test.js` (new).
+**Dev:** The dots chart's `1` floor, meant only to avoid a zero-width domain, was also kicking in whenever every real value was under $1 — moving the outlier label to a position with no dot and showing the wrong transaction's amount. The reassign race is timing-dependent and not coverable by this project's DOM-free `node --test` setup; fixed by code inspection and manual review rather than an automated regression test.
+**Plain:** Fixed the "biggest transaction" chart label showing the wrong amount when every transaction was under a dollar; made re-categorising two transactions in quick succession no longer risk the screen silently reverting to older data.
+**Why:** small but real bugs found during the same review — worth closing rather than leaving as a known quirk.
+
+### [2026-08-24 04:30] Added
+
+**Tech:** `web/errors.js` (new) — `showError()`, `guard()`; `web/index.html` — `#error-banner`; `web/style.css` — `.error-banner`; applied at `web/app.js` (top-level load, plus a `refreshing` re-entrancy guard), `web/overview-view.js`/`budgets-view.js` (`reassign`, budgets' click handler), `web/review-view.js` (`assign`, `excludeGroup`, the whole click listener including clipboard-copy and paste-apply); `scripts/diagnose-reimport.js` — plain try/catch around file reads and format-sniffing.
+**Dev:** Roughly eight call sites across the three view files had no error handling at all — a failed save or a dropped network request left the UI silently stale with no indication anything went wrong. One shared `guard()` wrapper now catches and surfaces every one of them via a single toast-style banner, auto-dismissing after 6s. The apply-pasted-JSON loop in Review additionally now tolerates one merchant's save failing without aborting the rest of the batch. Verified live in a browser (isolated `data-test`): the banner appears, is legible, and auto-dismisses; not unit-tested, since this project's `node --test` setup has no DOM and can't exercise real event-listener wiring.
+**Plain:** Added a visible error message when a save fails, instead of the screen just silently not updating.
+**Why:** several actions (recategorising, copying to clipboard, saving a budget) could fail with zero feedback — worth a shared error path once, rather than the bug recurring one view at a time.
+
+### [2026-08-24 04:30] Removed
+
+**Tech:** `web/panel.js:mount()`, `web/filter-bar.js:mountFilterBar()` deleted (zero references, zero test coverage); corresponding unused imports removed from `web/overview-view.js`.
+**Dev:** A code review also flagged `aggregateOverview()`/`renderOverviewView()` (`web/overview-view.js`) and `cssVariables()` (`web/charts/palette.js`) as apparently dead, plus the unwritten `accounts` collection and the unread `views` snapshot field and the PATCH endpoint's `applyToPast`/`rememberRule`. All five were left alone and only commented: `aggregateOverview`/`cssVariables` are pinned on purpose by existing tests ("still exported for Plan 1 compatibility"), and the other three read as intentionally-started, not-yet-finished features rather than oversights.
+**Plain:** Removed two small pieces of dead code that nothing used and nothing tested.
+**Why:** worth clearing out what's genuinely unused, but not worth guessing at half-built features or overriding a previous deliberate decision without asking first.
+
 ### [2026-08-24 02:15] Added
 
 **Tech:** `lib/budgets.js` (new) — `currentMonthKey`, `budgetStatus`, `allBudgetStatuses`; `budgets.json` collection (`server/store.js`, `server/routes/budgets.js`); `web/budgets-view.js` (new) — `renderBudgets`, `mountBudgets`; `web/drilldown-panel.js` — optional `hideable` flag; `web/app.js`, `web/index.html` — fourth "Budgets" tab with its own drill-down root.

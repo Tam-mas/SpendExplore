@@ -220,11 +220,13 @@ export function createImportRoutes(store, serialized) {
     });
   }
 
-  async function handleCommit(req, res) {
-    const validated = validateImportBody(await readBody(req));
-    if (validated.error) return sendJson(res, 400, { error: validated.error });
-    const { body, files } = validated;
-
+  // `body`/`files` arrive already read and shape-validated by the caller —
+  // readBody() waits on the client's connection, and doing that wait INSIDE
+  // `serialized` would let a stalled/slow upload wedge the one shared
+  // mutation gate every write route queues behind, blocking every other
+  // write in the app. See server/routes/budgets.js's handleCreate for the
+  // same pattern.
+  async function handleCommit(res, body, files) {
     const [ledger, rules] = await Promise.all([store.read('ledger'), store.read('rules')]);
     const day = localDay(new Date());
     const results = runIngest(files, body.accountId, body.mappingOverride, ledger, rules, day);
@@ -297,7 +299,11 @@ export function createImportRoutes(store, serialized) {
       return handlePreview(req, res);
     }
     if (req.method === 'POST' && pathname === '/api/import/commit') {
-      return serialized(() => handleCommit(req, res));
+      return (async () => {
+        const validated = validateImportBody(await readBody(req));
+        if (validated.error) return sendJson(res, 400, { error: validated.error });
+        return serialized(() => handleCommit(res, validated.body, validated.files));
+      })();
     }
     const rollback = pathname.match(ROLLBACK_RE);
     if (req.method === 'DELETE' && rollback) {

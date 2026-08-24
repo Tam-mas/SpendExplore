@@ -39,6 +39,21 @@ test('renderOverview shows the KPI row with real totals', () => {
   assert.match(html, /Needs review/i);
 });
 
+test('the "Needs review" KPI ignores excluded transactions', () => {
+  const html = renderOverview(SNAPSHOT, {});
+  assert.match(html, /Needs review<\/span><b class="warn">1<\/b>/,
+    'expected exactly the one non-excluded unknown row to count');
+
+  const excluded = {
+    ...SNAPSHOT,
+    transactions: SNAPSHOT.transactions.map((t) =>
+      t.categorySource === 'unknown' ? { ...t, excluded: true } : t)
+  };
+  const excludedHtml = renderOverview(excluded, {});
+  assert.match(excludedHtml, /Needs review<\/span><b class="">0<\/b>/,
+    'excluding the only unknown row should bring the KPI to 0');
+});
+
 test('renderOverview renders the filter bar above the panels', () => {
   const html = renderOverview(SNAPSHOT, {});
   assert.ok(html.indexOf('viz-filter-bar') < html.indexOf('viz-panel'), 'filter bar must precede panels');

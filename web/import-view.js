@@ -15,7 +15,15 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({
 }[c]));
 
 export function renderImportView(root, { onImported }) {
-  let pending = [];
+  // `busy` guards against a second drop/pick starting while handleFiles()
+  // is still reading/previewing the first batch — without it, whichever
+  // batch's preview renders LAST wins the on-screen cards, but the confirm
+  // handler used to read a shared outer variable that could have already
+  // moved on to a THIRD, still-in-flight batch by the time it was clicked.
+  // Passing each batch's files directly into its own renderPreviews() call
+  // (instead of through shared state) is what actually fixes that; `busy`
+  // just stops the confusing intermediate state from happening at all.
+  let busy = false;
 
   root.innerHTML = `
     <div class="dropzone" id="dropzone">
@@ -29,41 +37,51 @@ export function renderImportView(root, { onImported }) {
   const picker = root.querySelector('#filepicker');
   const previews = root.querySelector('#previews');
 
-  dropzone.addEventListener('click', () => picker.click());
+  dropzone.addEventListener('click', () => { if (!busy) picker.click(); });
   dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('over'); });
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('over');
-    handleFiles([...e.dataTransfer.files]);
+    if (!busy) handleFiles([...e.dataTransfer.files]);
   });
-  picker.addEventListener('change', () => handleFiles([...picker.files]));
+  picker.addEventListener('change', () => { if (!busy) handleFiles([...picker.files]); });
 
   async function handleFiles(fileList) {
     if (!fileList.length) return;
+    busy = true;
+    dropzone.classList.add('busy');
     previews.innerHTML = '<p class="empty">Reading files…</p>';
-    pending = await Promise.all(
-      fileList.map(async (f) => ({ filename: f.name, text: await f.text() }))
-    );
     try {
-      const { previews: cards } = await previewImport(pending);
-      renderPreviews(cards);
+      const files = await Promise.all(
+        fileList.map(async (f) => ({ filename: f.name, text: await f.text() }))
+      );
+      const { previews: cards } = await previewImport(files);
+      renderPreviews(cards, files);
     } catch (err) {
       previews.innerHTML = `<div class="card warn">Could not read these files: ${escapeHtml(err.message)}</div>`;
+    } finally {
+      busy = false;
+      dropzone.classList.remove('busy');
     }
   }
 
-  function renderPreviews(cards) {
+  // `files` is the exact batch that produced `cards` — closed over directly
+  // by the confirm handler below, so what gets committed always matches
+  // what's on screen, even if another handleFiles() call is already
+  // running by the time the user clicks Confirm.
+  function renderPreviews(cards, files) {
     previews.innerHTML = cards.map((card) => `
       <div class="card">
         <h3>${escapeHtml(card.filename)}</h3>
+        ${card.format ? `
         <p>
           Detected <b>${escapeHtml(card.format.dateFormat)}</b> dates,
           spend as <b>${escapeHtml(card.format.spendSign)}</b> amounts
           ${card.format.dateFormatConfidence === 'low'
             ? '<span class="warn">— day/month order could not be confirmed from this file, please check the dates below</span>'
             : ''}
-        </p>
+        </p>` : ''}
         <p>
           <b>${card.summary.rowsRead}</b> rows ·
           <b>${card.summary.added}</b> new ·
@@ -102,13 +120,12 @@ export function renderImportView(root, { onImported }) {
       e.target.disabled = true;
       e.target.textContent = 'Importing…';
       try {
-        const { results } = await commitImport(pending);
+        const { results } = await commitImport(files);
         const added = results.reduce((a, r) => a + r.summary.added, 0);
         const review = results.reduce((a, r) => a + r.summary.needsReview, 0);
         previews.innerHTML =
           `<div class="card"><b>${added}</b> transactions imported, ` +
           `<b class="${review ? 'warn' : ''}">${review}</b> need review.</div>`;
-        pending = [];
         await onImported();
       } catch (err) {
         previews.innerHTML = `<div class="card warn">Import failed: ${escapeHtml(err.message)}</div>`;

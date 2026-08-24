@@ -99,7 +99,16 @@ export function mixToward(hex, target, amount) {
   return rgbToHex(a.map((v, i) => v + (b[i] - v) * clamp01(amount)));
 }
 
-/** A `:root`-ready custom-property block for one mode. */
+/**
+ * A `:root`-ready custom-property block for one mode.
+ *
+ * Nothing calls this today — web/style.css hand-types the same --viz-*
+ * values instead, so the two can drift out of sync undetected. Kept rather
+ * than deleted: tests/charts-palette.test.js pins its output on purpose,
+ * and it's the more maintainable path (inject this into a <style> block at
+ * load time) if that drift ever needs fixing. Not fixed here — out of scope
+ * for this pass.
+ */
 export function cssVariables(mode = 'light') {
   const lines = [
     `--viz-surface: ${SURFACES[mode]};`,

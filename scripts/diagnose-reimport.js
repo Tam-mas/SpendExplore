@@ -22,11 +22,23 @@ if (!csvPath) {
   process.exit(1);
 }
 
-const ledger = JSON.parse(readFileSync(join(dataDir, 'ledger.json'), 'utf8'));
-const csvText = readFileSync(csvPath, 'utf8');
+let ledger, csvText;
+try {
+  ledger = JSON.parse(readFileSync(join(dataDir, 'ledger.json'), 'utf8'));
+  csvText = readFileSync(csvPath, 'utf8');
+} catch (err) {
+  console.error(`Could not read ${err.path ?? 'a required file'}: ${err.message}`);
+  process.exit(1);
+}
 
 const records = parseCsvWithLines(csvText);
-const format = sniffFormat(records.map((r) => r.fields));
+let format;
+try {
+  format = sniffFormat(records.map((r) => r.fields));
+} catch (err) {
+  console.error(`Could not make sense of ${csvPath}: ${err.message}`);
+  process.exit(1);
+}
 console.log('=== Detected format for the new file ===');
 console.log(JSON.stringify(format, null, 2));
 console.log();

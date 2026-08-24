@@ -81,6 +81,17 @@ test('parseAmount strips currency symbols and separators', () => {
   assert.equal(parseAmount('abc'), null);
 });
 
+test('parseAmount accepts a bare leading decimal point', () => {
+  assert.equal(parseAmount('.50'), 0.5);
+});
+
+test('parseAmount rejects a string too long to be a real amount, without hanging', () => {
+  const start = performance.now();
+  assert.equal(parseAmount('1'.repeat(40)), null);
+  assert.equal(parseAmount('9'.repeat(100000) + 'x'), null);
+  assert.ok(performance.now() - start < 200, 'parseAmount should reject an oversized string near-instantly, not backtrack over it');
+});
+
 // --- Fix wave: review findings ---
 
 test('picks the transaction column over the balance column on a credit-card layout (positive charges, negative running balance)', () => {

@@ -13,6 +13,12 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({
  *
  * Pulled out as a pure function (snapshot in, plain data out) so it can be
  * unit-tested against a hand-built snapshot without touching the DOM.
+ *
+ * Confirmed still unused by anything outside this file and its own test
+ * (a later review pass flagged it as dead code) — kept anyway, since
+ * tests/overview-aggregate.test.js and tests/overview-panels.test.js pin it
+ * for "Plan 1 compatibility" on purpose. Removing it is a deliberate call
+ * for whoever owns that compatibility guarantee, not a cleanup.
  */
 export function aggregateOverview(snapshot) {
   const { transactions, categories } = snapshot;
@@ -60,14 +66,15 @@ export function aggregateOverview(snapshot) {
   return { total, count: spend.length, largest, needsReview, groups, widest };
 }
 
-import { createPanel, mount } from './panel.js';
-import { renderFilterBar, mountFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
+import { createPanel } from './panel.js';
+import { renderFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
 import { query } from '../lib/query/query.js';
 import { escapeHtml as escapeHtmlFromScale, formatMoney } from './charts/scale.js';
 import { transactionsForSlice } from '../lib/query/slice-transactions.js';
 import { searchTransactions } from '../lib/query/search-transactions.js';
 import { renderDrilldown } from './drilldown-panel.js';
 import { patchTransaction, getSnapshot } from './api.js';
+import { guard } from './errors.js';
 
 const STORAGE_KEY = 'spendexplore.overview.panels';
 
@@ -103,7 +110,7 @@ function searchBox(query = '') {
 
 function kpiRow(snapshot, globalFilters) {
   const result = query(snapshot, { filters: globalFilters, sliceBy: 'category', measure: 'sum' });
-  const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown').length;
+  const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown' && !t.excluded).length;
   return `
   <div class="kpis">
     <div class="kpi"><span>Total spend</span><b>${formatMoney(result.total)}</b></div>
@@ -149,6 +156,11 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   const excludedIds = new Set();
   let drilldown = null; // { label, rows, refetch } | null
   let searchQuery = '';
+  // Bumped on every reassign() call; a call only applies its getSnapshot()
+  // result if it's still the most recent one when the response lands —
+  // otherwise a slower earlier request could overwrite a faster later one
+  // and silently regress `current` to a snapshot missing the newer edit.
+  let reassignToken = 0;
 
   const extraFilters = () => (excludedIds.size ? { excludeIds: [...excludedIds] } : {});
 
@@ -206,11 +218,14 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     draw();
   }
 
-  async function reassign(id, categoryId) {
+  const reassign = guard(async (id, categoryId) => {
+    const token = ++reassignToken;
     await patchTransaction(id, { categoryId });
-    current = await getSnapshot();
+    const snapshotResult = await getSnapshot();
+    if (token !== reassignToken) return; // a newer reassign() has started since; discard this result
+    current = snapshotResult;
     draw();
-  }
+  });
 
   /**
    * Live-as-you-type search. This deliberately redraws ONLY the drill-down

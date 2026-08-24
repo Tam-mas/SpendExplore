@@ -25,7 +25,12 @@ export function renderDots(result, { mode = 'light', title = '', points = [], co
 
   const fallback = GROUP_SLOTS['food-drink'][mode] ?? GROUP_SLOTS['food-drink'].light;
   const magnitudes = points.map((p) => Math.abs(p.amount));
-  const max = Math.max(...magnitudes, 1);
+  // The `1` floor only exists to avoid a zero-width domain when every point
+  // is exactly $0 — using it whenever the real max is merely UNDER $1 would
+  // silently inflate the domain, moving the outlier label to a position no
+  // dot occupies and, since `max` then matches no real magnitude, making
+  // `maxIndex` below fall back to the wrong transaction.
+  const max = Math.max(...magnitudes) || 1;
   const plotW = WIDTH - PAD.left - PAD.right;
   const scale = linearScale(max, plotW);
   const baseline = HEIGHT - PAD.bottom;

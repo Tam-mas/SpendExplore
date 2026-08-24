@@ -1,6 +1,7 @@
 import { buildQueue, itemForMerchant, promptForClaude, parseClaudeResponse } from '../lib/review.js';
 import { escapeHtml, formatMoney } from './charts/scale.js';
 import { bulkCategorise, patchTransaction, createCategory, getSnapshot } from './api.js';
+import { guard } from './errors.js';
 
 const labelFor = (snapshot, id) =>
   (snapshot?.categories?.categories ?? []).find((c) => c.id === id)?.label ?? id;
@@ -138,23 +139,23 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
     state.index = state.order.length ? Math.min(state.index + 1, state.order.length - 1) : 0;
   };
 
-  async function assign(categoryId) {
+  const assign = guard(async (categoryId) => {
     const item = currentItem();
     if (!item) return;
     await bulkCategorise({ ids: item.ids, categoryId, rememberRule: true, applyToPast: false });
     advance();
     await refresh();
-  }
+  });
 
-  async function excludeGroup() {
+  const excludeGroup = guard(async () => {
     const item = currentItem();
     if (!item) return;
     for (const id of item.ids) await patchTransaction(id, { excluded: true });
     advance();
     await refresh();
-  }
+  });
 
-  root.addEventListener('click', async (event) => {
+  root.addEventListener('click', guard(async (event) => {
     const assignTo = event.target.closest('[data-assign]')?.dataset.assign;
     if (assignTo) return assign(assignTo);
 
@@ -197,21 +198,30 @@ export function mountReview(root, { snapshot, onChanged } = {}) {
       const queue = buildQueue(current);
       let applied = 0;
       let skippedMerchants = 0;
+      let failed = 0;
       for (const { merchant, categoryId } of assignments) {
         const item = queue.items.find((i) => i.merchant === merchant);
         if (!item) { skippedMerchants++; continue; }
-        await bulkCategorise({ ids: item.ids, categoryId, rememberRule: true, applyToPast: false });
-        applied++;
+        // One merchant's save failing (network blip, stale category) must
+        // not abort the rest of the batch or hide how much DID apply — the
+        // loop keeps going and the summary below reports the failure count.
+        try {
+          await bulkCategorise({ ids: item.ids, categoryId, rememberRule: true, applyToPast: false });
+          applied++;
+        } catch {
+          failed++;
+        }
       }
       const parts = [`Applied ${applied} of ${assignments.length}.`];
       if (skippedMerchants > 0) parts.push(`${skippedMerchants} merchant${skippedMerchants === 1 ? ' was' : 's were'} not in the queue.`);
+      if (failed > 0) parts.push(`${failed} failed to save — try again.`);
       if (errors.length > 0) parts.push(`${errors.length} error${errors.length === 1 ? '' : 's'}.`);
       state.index = 0;
       state.pasteResult = parts.join(' ');
       state.pasteError = null;
       await refresh();
     }
-  });
+  }));
 
   root.addEventListener('change', (event) => {
     if (event.target.dataset?.reviewAction === 'search' && event.target.value) {

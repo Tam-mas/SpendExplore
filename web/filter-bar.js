@@ -87,11 +87,3 @@ export function readFilterBar(root) {
   const one = (name) => (value(name) ? [value(name)] : []);
   return { month: value('month'), accountIds: one('accountIds'), people: one('people'), groupIds: one('groupIds') };
 }
-
-export function mountFilterBar(root, { snapshot, filters = {}, onChange } = {}) {
-  root.innerHTML = renderFilterBar(snapshot, filters);
-  root.addEventListener('change', (event) => {
-    if (!event.target?.dataset?.filter) return;
-    onChange?.(readFilterBar(root));
-  });
-}

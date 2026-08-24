@@ -31,6 +31,7 @@ main { padding: 24px; max-width: 980px; }
   text-align: center; color: var(--muted); cursor: pointer;
 }
 .dropzone.over { border-color: var(--accent); color: var(--fg); }
+.dropzone.busy { cursor: default; opacity: .6; pointer-events: none; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
@@ -125,6 +126,13 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
   padding: 20px;
 }
 .drilldown.hidden { display: none; }
+.error-banner {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px)); z-index: 30;
+  background: var(--warn); color: #fff; border-radius: 8px;
+  padding: 10px 16px; box-shadow: 0 4px 16px rgba(0,0,0,.2); font-size: 14px;
+}
+.error-banner.hidden { display: none; }
 .drilldown-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .drilldown-head h3 { margin: 0; font-size: 16px; }
 .drilldown-head button { background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--viz-text-primary); padding: 2px 8px; }
