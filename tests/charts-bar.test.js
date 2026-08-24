@@ -151,3 +151,45 @@ test('renderBar marks each bar with its slice key for drill-down', () => {
   assert.match(svg, /data-slice-key="groceries"/);
   assert.match(svg, /class="viz-clickable"/);
 });
+
+// Task 5 tests: ghost baseline bars
+import { formatDelta, deltaClass } from '../web/delta.js';
+
+const withBaseline = (rows) => ({ rows, total: 0, stats: {}, meta: { measure: 'sum' } });
+
+test('the bar chart draws no ghost bar when no row has a baseline', () => {
+  const svg = renderBar(withBaseline([
+    { key: 'groceries', label: 'Groceries', value: -300, count: 3, baseline: null, delta: null, deltaPct: null }
+  ]));
+  assert.equal(svg.includes('viz-ghost'), false);
+  assert.equal(svg.includes('viz-delta'), false);
+});
+
+test('the bar chart draws a dashed ghost bar and a delta label when a baseline exists', () => {
+  const svg = renderBar(withBaseline([
+    { key: 'groceries', label: 'Groceries', value: -300, count: 3, baseline: -200, delta: 100, deltaPct: 0.5 }
+  ]));
+  assert.match(svg, /class="viz-ghost"/);
+  assert.match(svg, /stroke-dasharray/);
+  assert.match(svg, /viz-delta-up/);
+  assert.match(svg, /▲ 50%/);
+});
+
+test('the bar scale accounts for a baseline taller than every real bar', () => {
+  // Spending collapsed this month. The ghost bar is the widest mark on the
+  // chart, so the domain must come from it or it would overflow the plot.
+  const svg = renderBar(withBaseline([
+    { key: 'groceries', label: 'Groceries', value: -50, count: 1, baseline: -500, delta: -450, deltaPct: -0.9 }
+  ]));
+  const widths = [...svg.matchAll(/width="([\d.]+)"/g)].map((m) => Number(m[1]));
+  const plotWidth = 600 - 150 - (96 + 74);
+  assert.ok(widths.every((w) => w <= plotWidth + 1), `a mark overflowed the plot: ${widths}`);
+});
+
+test('a row with a zero baseline still renders without a ghost bar of negative width', () => {
+  const svg = renderBar(withBaseline([
+    { key: 'shopping', label: 'Shopping', value: -40, count: 1, baseline: 0, delta: 40, deltaPct: null }
+  ]));
+  assert.equal(svg.includes('width="-'), false);
+  assert.match(svg, /▲ \$40\.00/);
+});
