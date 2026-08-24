@@ -1,4 +1,4 @@
-import { query } from '../lib/query/query.js';
+import { compareQuery } from '../lib/query/compare.js';
 import { applyFilters, buildContext } from '../lib/query/filter.js';
 import { SLICES, groupBy } from '../lib/query/group-by.js';
 import { MEASURES } from '../lib/query/measures.js';
@@ -87,13 +87,15 @@ export function createPanel(initial = {}) {
       return config;
     },
 
-    html(snapshot, globalFilters = {}) {
+    html(snapshot, globalFilters = {}, compareMode = 'off') {
       const spec = {
         filters: { ...globalFilters, ...config.filters },
         sliceBy: config.sliceBy,
         measure: config.measure
       };
-      const result = query(snapshot, spec);
+      // compareQuery with mode 'off' runs query() exactly once and returns the
+      // same rows with null baseline fields — one code path, no branch here.
+      const result = compareQuery(snapshot, spec, compareMode);
       const colourFor = colourResolver(snapshot, config.sliceBy);
 
       const options = { mode: 'light', colourFor, title: config.title };

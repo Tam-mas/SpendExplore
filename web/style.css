@@ -93,6 +93,14 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-filter-bar { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .viz-search { margin: 4px 0 16px; }
 .viz-search input { width: 100%; max-width: 320px; font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.viz-delta { font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.viz-delta-up { color: var(--warn); fill: var(--warn); }
+.viz-delta-down { color: var(--muted); fill: var(--muted); }
+.viz-delta-flat { color: var(--muted); fill: var(--muted); }
+.kpi .viz-delta { display: block; margin-top: 3px; }
+/* Baseline marks are decoration behind the real value — they must never
+   intercept the click that opens the drill-down panel. */
+.viz-ghost, .viz-ghost-line { pointer-events: none; opacity: .55; }
 
 .review { max-width: 640px; }
 .review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

@@ -117,3 +117,64 @@ test('the search box is empty by default', () => {
   const html = renderOverview(SNAPSHOT, {});
   assert.match(html, /data-search[^>]*value=""/);
 });
+
+import { createPanel as createPanelForCompare } from '../web/panel.js';
+import { renderOverview as renderOverviewForCompare } from '../web/overview-view.js';
+
+const cmpTxn = (over) => ({
+  id: 'x', date: '2026-08-10', amount: -10, rawDescription: 'R', merchant: 'M',
+  accountId: 'a', cardSuffix: null, categoryId: 'groceries', categorySource: 'rule',
+  excluded: false, importId: 'i', note: null, ...over
+});
+
+const CMP_SNAPSHOT = {
+  categories: {
+    groups: [{ id: 'food-drink', label: 'Food & Drink' }],
+    categories: [{ id: 'groceries', label: 'Groceries', groupId: 'food-drink' }]
+  },
+  accounts: [],
+  transactions: [
+    cmpTxn({ id: 'j1', date: '2026-07-10', amount: -200 }),
+    cmpTxn({ id: 'a1', date: '2026-08-10', amount: -300 })
+  ]
+};
+
+const AUG_FILTERS = { month: '2026-08' };
+
+test('a panel renders no comparison markup when the mode is off', () => {
+  const html = createPanelForCompare({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar' })
+    .html(CMP_SNAPSHOT, { dateFrom: '2026-08-01', dateTo: '2026-08-31' }, 'off');
+  assert.equal(html.includes('viz-ghost'), false);
+});
+
+test('a panel renders ghost bars when a comparison mode is passed', () => {
+  const html = createPanelForCompare({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar' })
+    .html(CMP_SNAPSHOT, { dateFrom: '2026-08-01', dateTo: '2026-08-31' }, 'prevPeriod');
+  assert.match(html, /viz-ghost/);
+  assert.match(html, /▲ 50%/);
+});
+
+test('the KPI row shows a delta chip naming the baseline', () => {
+  const html = renderOverviewForCompare(CMP_SNAPSHOT, AUG_FILTERS, [], {}, 0, '', 'prevPeriod');
+  assert.match(html, /viz-delta-up/);
+  assert.match(html, /vs prev/);
+});
+
+test('the Transactions tile carries its own count baseline, not the dollar one', () => {
+  // July had 1 transaction, August has 1 — the count is flat while the dollars
+  // are up 50%. If this tile reused the sum's delta it would read "up 50%".
+  const html = renderOverviewForCompare(CMP_SNAPSHOT, AUG_FILTERS, [], {}, 0, '', 'prevPeriod');
+  assert.match(html, /Transactions<\/span><b>1<\/b><span class="viz-delta[^"]*">– no change/);
+});
+
+test('the KPI row shows no delta chip when comparison is off', () => {
+  const html = renderOverviewForCompare(CMP_SNAPSHOT, AUG_FILTERS, [], {}, 0, '', 'off');
+  assert.equal(html.includes('viz-delta-up'), false);
+});
+
+test('the KPI row shows no delta chip when the baseline predates the ledger', () => {
+  // July is the first month in this ledger, so June has no history to compare.
+  const html = renderOverviewForCompare(CMP_SNAPSHOT, { month: '2026-07' }, [], {}, 0, '', 'prevPeriod');
+  assert.equal(html.includes('viz-delta-up'), false);
+  assert.equal(html.includes('viz-delta-down'), false);
+});

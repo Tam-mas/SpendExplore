@@ -69,6 +69,9 @@ export function aggregateOverview(snapshot) {
 import { createPanel } from './panel.js';
 import { renderFilterBar, toQueryFilters, readFilterBar } from './filter-bar.js';
 import { query } from '../lib/query/query.js';
+import { compareQuery } from '../lib/query/compare.js';
+import { deltaChip } from './delta.js';
+import { BASELINE_MODES } from '../lib/query/periods.js';
 import { escapeHtml as escapeHtmlFromScale, formatMoney } from './charts/scale.js';
 import { transactionsForSlice } from '../lib/query/slice-transactions.js';
 import { searchTransactions } from '../lib/query/search-transactions.js';
@@ -101,6 +104,28 @@ function savePanelConfigs(configs) {
   } catch { /* storage unavailable — panel state simply does not persist */ }
 }
 
+const COMPARE_KEY = 'spendexplore.overview.compare';
+
+/**
+ * The comparison baseline is a preference, not a filter — it persists across
+ * reloads the way panel configs do. Trailing-3 is the default because a single
+ * lumpy month makes prevPeriod swing in both directions for two months running.
+ */
+function loadCompareMode() {
+  try {
+    const stored = globalThis.localStorage?.getItem(COMPARE_KEY);
+    return BASELINE_MODES.includes(stored) ? stored : 'trailing3';
+  } catch {
+    return 'trailing3';
+  }
+}
+
+function saveCompareMode(mode) {
+  try {
+    globalThis.localStorage?.setItem(COMPARE_KEY, mode);
+  } catch { /* storage unavailable — the mode simply does not persist */ }
+}
+
 function searchBox(query = '') {
   return `
   <div class="viz-search">
@@ -108,13 +133,26 @@ function searchBox(query = '') {
   </div>`;
 }
 
-function kpiRow(snapshot, globalFilters) {
-  const result = query(snapshot, { filters: globalFilters, sliceBy: 'category', measure: 'sum' });
+function kpiRow(snapshot, globalFilters, compareMode = 'off') {
+  const spec = { filters: globalFilters, sliceBy: 'category' };
+  const result = compareQuery(snapshot, { ...spec, measure: 'sum' }, compareMode);
+  // A second pass, for the count's OWN baseline. The transaction count moves
+  // independently of the dollars — twenty small shops versus one big one — so
+  // reusing the sum's delta here would state something untrue. Cost is one
+  // more pass over an in-memory array.
+  const counts = compareQuery(snapshot, { ...spec, measure: 'count' }, compareMode);
   const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown' && !t.excluded).length;
+
+  // Both grand-total rows are shaped like a query row so deltaChip formats
+  // them with no special case. When comparison is off or unavailable,
+  // baselineTotal is null and deltaChip renders nothing.
+  const totalRow = { baseline: result.baselineTotal, delta: result.baselineDelta, deltaPct: result.baselineDeltaPct };
+  const countRow = { baseline: counts.baselineTotal, delta: counts.baselineDelta, deltaPct: counts.baselineDeltaPct };
+
   return `
   <div class="kpis">
-    <div class="kpi"><span>Total spend</span><b>${formatMoney(result.total)}</b></div>
-    <div class="kpi"><span>Transactions</span><b>${result.stats.txnCount}</b></div>
+    <div class="kpi"><span>Total spend</span><b>${formatMoney(result.total)}</b>${deltaChip(totalRow, 'sum', compareMode)}</div>
+    <div class="kpi"><span>Transactions</span><b>${result.stats.txnCount}</b>${deltaChip(countRow, 'count', compareMode)}</div>
     <div class="kpi"><span>Largest single</span><b>${formatMoney(result.stats.largest)}</b></div>
     <div class="kpi"><span>Needs review</span><b class="${needsReview ? 'warn' : ''}">${needsReview}</b></div>
   </div>`;
@@ -128,23 +166,23 @@ function kpiRow(snapshot, globalFilters) {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '') {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '', compareMode = 'off') {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
   const queryFilters = { ...toQueryFilters(uiFilters), ...extraFilters };
   const panels = panelConfigs
-    .map((config) => createPanel(config).html(snapshot, queryFilters))
+    .map((config) => createPanel(config).html(snapshot, queryFilters, compareMode))
     .join('');
   const hiddenBanner = hiddenCount > 0
     ? `<p class="viz-note hidden-banner">${hiddenCount} transaction${hiddenCount === 1 ? '' : 's'} hidden this session · <button data-overview-action="show-all">Show all</button></p>`
     : '';
 
   return `
-    ${kpiRow(snapshot, queryFilters)}
+    ${kpiRow(snapshot, queryFilters, compareMode)}
     ${hiddenBanner}
     ${searchBox(searchQuery)}
-    ${renderFilterBar(snapshot, uiFilters)}
+    ${renderFilterBar(snapshot, uiFilters, compareMode)}
     ${panels}`;
 }
 
@@ -152,6 +190,7 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
 export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   let current = snapshot;
   let filters = {};
+  let compareMode = loadCompareMode();
   let configs = loadPanelConfigs();
   const excludedIds = new Set();
   let drilldown = null; // { label, rows, refetch } | null
@@ -182,7 +221,7 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   };
 
   const draw = () => {
-    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size, searchQuery);
+    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size, searchQuery, compareMode);
     drawDrilldown();
   };
 
@@ -281,7 +320,12 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   root.addEventListener('change', (event) => {
     const target = event.target;
     if (target?.dataset?.filter) {
-      filters = readFilterBar(root);
+      const read = readFilterBar(root);
+      filters = read;
+      if (read.compare !== compareMode) {
+        compareMode = read.compare;
+        saveCompareMode(compareMode);
+      }
       draw();
       return;
     }
