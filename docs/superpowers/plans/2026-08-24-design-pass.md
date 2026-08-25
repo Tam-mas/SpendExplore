@@ -225,7 +225,7 @@ git commit -m "feat: add a design token layer and route every figure through tab
 - Test: `tests/overview-panels.test.js`
 
 **Interfaces:**
-- Consumes: the `applyPanelChange` helper added in the chart-interaction plan's Task 6. If that plan has not been run, add the helper here — it is four lines and is reused by three handlers.
+- Consumes: nothing from other plans. (An earlier draft said to add an `applyPanelChange` helper here, claiming three handlers reuse it. That was written assuming the chart-interaction plan's legend-muting handler existed. It does not, Tasks 3 and 4 do not use it, and `web/overview-view.js` has exactly one call site for the find/mutate/persist/redraw sequence — so the helper would be a four-line indirection with a single caller. Do not add it; the interaction plan introduces it when it has a second consumer.)
 - Produces: `createPanel` accepts `span: 'half' | 'full'` (default `'half'`, except time slices which default to `'full'`), emits `data-span` on `.viz-panel`, and renders a width control in the panel header. `renderOverview` wraps the panels in `.viz-grid-panels`.
 
 **Why a per-panel span and not a uniform two-column grid:** a month-by-month line chart needs width to be readable and a category bar chart does not. A grid that cannot express that forces every panel to the width of the neediest one.
