@@ -111,6 +111,22 @@ button.primary[disabled] { opacity: .5; cursor: default; }
     --viz-grid: #2c2f34;
   }
 }
+.viz-grid-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+.viz-panel[data-span="full"] { grid-column: 1 / -1; }
+/* minmax(0, 1fr) above is what lets a wide SVG scroll inside its own
+   .viz-plot instead of forcing the whole grid track wider. */
+.viz-plot { overflow-x: auto; }
+
+@media (max-width: 1100px) {
+  .viz-grid-panels { grid-template-columns: minmax(0, 1fr); }
+  .viz-panel[data-span="full"] { grid-column: auto; }
+}
+
 .viz-panel { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); background: var(--surface-raised); }
 .viz-panel-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
 .viz-panel-head h3 { margin: 0; font-size: 15px; }
@@ -119,7 +135,6 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-control-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--viz-text-secondary); }
 .viz-control select { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); }
 .viz-note { font-size: 12px; color: var(--viz-text-secondary); margin: 8px 0 12px; }
-.viz-plot { overflow-x: auto; }
 .viz-label { font-size: 12px; fill: var(--viz-text-secondary); }
 .viz-value { font-size: 12px; fill: var(--viz-text-primary); font-variant-numeric: tabular-nums; }
 .viz-total { font-size: 17px; fill: var(--viz-text-primary); font-weight: 600; }

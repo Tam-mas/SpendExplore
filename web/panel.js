@@ -16,6 +16,14 @@ const MEASURE_LABELS = {
   sum: 'Total $', count: '# Txns', avg: 'Average', median: 'Median', pctOfTotal: '% of total'
 };
 
+const SPANS = Object.freeze(['half', 'full']);
+const SPAN_LABELS = { half: 'Half width', full: 'Full width' };
+
+const TIME_SLICES_FOR_SPAN = new Set(['week', 'month']);
+
+/** A squeezed timeline is unreadable, so time slices claim the full row by default. */
+const defaultSpanFor = (sliceBy) => (TIME_SLICES_FOR_SPAN.has(sliceBy) ? 'full' : 'half');
+
 /**
  * A row's colour, keyed by ENTITY identity so that filtering out one bucket
  * never repaints the survivors.
@@ -43,9 +51,11 @@ export function colourResolver(snapshot, sliceBy, mode = 'light') {
   return () => single;
 }
 
+const CONTROL_LABELS = { sliceBy: 'Slice by', measure: 'Measure', chartType: 'Chart', span: 'Width' };
+
 const selectFor = (name, options, current) => `
   <label class="viz-control">
-    <span class="viz-control-label">${name === 'sliceBy' ? 'Slice by' : name === 'measure' ? 'Measure' : 'Chart'}</span>
+    <span class="viz-control-label">${CONTROL_LABELS[name] ?? name}</span>
     <select data-panel-control="${name}">
       ${options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === current ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
     </select>
@@ -63,6 +73,7 @@ export function createPanel(initial = {}) {
     sliceBy: SLICES.includes(initial.sliceBy) ? initial.sliceBy : 'category',
     measure: MEASURES.includes(initial.measure) ? initial.measure : 'sum',
     chartType: initial.chartType ?? null,
+    span: SPANS.includes(initial.span) ? initial.span : null,
     filters: initial.filters ?? {}
   };
 
@@ -86,8 +97,11 @@ export function createPanel(initial = {}) {
       if (valid.includes(value)) config.chartType = value;
       return config;
     },
+    setSpan(value) { if (SPANS.includes(value)) config.span = value; return config; },
 
     html(snapshot, globalFilters = {}, compareMode = 'off') {
+      const resolvedSpan = () => config.span ?? defaultSpanFor(config.sliceBy);
+
       const spec = {
         filters: { ...globalFilters, ...config.filters },
         sliceBy: config.sliceBy,
@@ -144,15 +158,17 @@ export function createPanel(initial = {}) {
       const sliceOptions = SLICES.map((s) => ({ value: s, label: SLICE_LABELS[s] ?? s }));
       const measureOptions = MEASURES.map((m) => ({ value: m, label: MEASURE_LABELS[m] ?? m }));
       const chartOptions = chartsFor(config.sliceBy, config.measure).map((c) => ({ value: c.id, label: c.label }));
+      const spanOptions = SPANS.map((s) => ({ value: s, label: SPAN_LABELS[s] }));
 
       return `
-      <section class="viz-panel" data-panel-id="${escapeHtml(config.id)}">
+      <section class="viz-panel" data-panel-id="${escapeHtml(config.id)}" data-span="${resolvedSpan()}">
         <header class="viz-panel-head">
           <h3>${escapeHtml(config.title)}</h3>
           <div class="viz-controls">
             ${selectFor('sliceBy', sliceOptions, config.sliceBy)}
             ${selectFor('measure', measureOptions, config.measure)}
             ${selectFor('chartType', chartOptions, config.chartType)}
+            ${selectFor('span', spanOptions, resolvedSpan())}
           </div>
         </header>
         <p class="viz-note">${escapeHtml(concentrationLine(result.stats))}</p>

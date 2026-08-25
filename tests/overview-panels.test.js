@@ -5,6 +5,8 @@ import { aggregateOverview } from '../web/overview-view.js';
 import { createPanel as createPanelForCompare } from '../web/panel.js';
 import { renderOverview as renderOverviewForCompare } from '../web/overview-view.js';
 import { renderOverview as renderOverviewForRecurring } from '../web/overview-view.js';
+import { createPanel as createPanelForSpan } from '../web/panel.js';
+import { renderOverview as renderOverviewForGrid } from '../web/overview-view.js';
 
 const SNAPSHOT = {
   categories: {
@@ -233,4 +235,66 @@ test('the committed monthly tile ignores a date/month filter so cadence detectio
     RECURRING_SNAPSHOT, { month: '2026-08' }, [], {}, 0, '', 'off', '2026-08-24'
   );
   assert.match(html, /Committed monthly<\/span><b>\$30\.98<\/b>/);
+});
+
+const spanTxn = (over) => ({
+  id: 'x', date: '2026-08-10', amount: -100, rawDescription: 'R', merchant: 'M',
+  accountId: 'a', cardSuffix: null, categoryId: 'groceries', categorySource: 'rule',
+  excluded: false, importId: 'i', note: null, ...over
+});
+
+const SPAN_SNAPSHOT = {
+  accounts: [],
+  categories: {
+    groups: [{ id: 'food-drink', label: 'Food & Drink' }],
+    categories: [{ id: 'groceries', label: 'Groceries', groupId: 'food-drink' }]
+  },
+  transactions: [spanTxn({ id: 'a' }), spanTxn({ id: 'b', date: '2026-07-10' })]
+};
+
+test('a category panel defaults to half width', () => {
+  const html = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(html, /data-span="half"/);
+});
+
+test('a time-series panel defaults to full width, because a squeezed timeline is unreadable', () => {
+  const html = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'month', measure: 'sum', chartType: 'line' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(html, /data-span="full"/);
+});
+
+test('an explicit span overrides the default in both directions', () => {
+  const wide = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar', span: 'full' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(wide, /data-span="full"/);
+
+  const narrow = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'month', measure: 'sum', chartType: 'line', span: 'half' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(narrow, /data-span="half"/);
+});
+
+test('an unknown span value falls back to the default rather than emitting it', () => {
+  const html = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar', span: 'enormous' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(html, /data-span="half"/);
+});
+
+test('the panel header offers a width control', () => {
+  const html = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar' })
+    .html(SPAN_SNAPSHOT, {});
+  assert.match(html, /data-panel-control="span"/);
+});
+
+test('setSpan changes the config and rejects nonsense', () => {
+  const panel = createPanelForSpan({ id: 'p', title: 'T', sliceBy: 'category', measure: 'sum', chartType: 'bar' });
+  assert.equal(panel.setSpan('full').span, 'full');
+  assert.equal(panel.setSpan('sideways').span, 'full');
+});
+
+test('the panels are wrapped in a grid container', () => {
+  const html = renderOverviewForGrid(SPAN_SNAPSHOT, {}, [
+    { id: 'p1', title: 'A', sliceBy: 'category', measure: 'sum', chartType: 'bar' }
+  ]);
+  assert.match(html, /class="viz-grid-panels"/);
 });

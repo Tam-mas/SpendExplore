@@ -24,7 +24,7 @@ const SNAPSHOT = {
 
 test('a panel is pure config', () => {
   const p = createPanel({ id: 'p1', title: 'Where it went', sliceBy: 'category', measure: 'sum' });
-  assert.deepEqual(Object.keys(p.config).sort(), ['chartType', 'filters', 'id', 'measure', 'sliceBy', 'title']);
+  assert.deepEqual(Object.keys(p.config).sort(), ['chartType', 'filters', 'id', 'measure', 'sliceBy', 'span', 'title']);
 });
 
 test('a panel with no chart type takes the slice default', () => {

@@ -190,9 +190,9 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
   const queryFilters = { ...toQueryFilters(uiFilters), ...extraFilters };
-  const panels = panelConfigs
+  const panels = `<div class="viz-grid-panels">${panelConfigs
     .map((config) => createPanel(config).html(snapshot, queryFilters, compareMode))
-    .join('');
+    .join('')}</div>`;
   const hiddenBanner = hiddenCount > 0
     ? `<p class="viz-note hidden-banner">${hiddenCount} transaction${hiddenCount === 1 ? '' : 's'} hidden this session · <button data-overview-action="show-all">Show all</button></p>`
     : '';
@@ -359,6 +359,7 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     if (control === 'sliceBy') panel.setSlice(target.value);
     else if (control === 'measure') panel.setMeasure(target.value);
     else if (control === 'chartType') panel.setChart(target.value);
+    else if (control === 'span') panel.setSpan(target.value);
 
     configs = configs.map((c) => (c.id === panelId ? { ...panel.config } : c));
     savePanelConfigs(configs);
