@@ -4,10 +4,15 @@ import { applyFilters, buildContext } from '../lib/query/filter.js';
 
 const SNAPSHOT = {
   categories: {
-    groups: [{ id: 'food-drink', label: 'Food & Drink' }, { id: 'other', label: 'Other' }],
+    groups: [
+      { id: 'food-drink', label: 'Food & Drink' },
+      { id: 'money', label: 'Money' },
+      { id: 'other', label: 'Other' }
+    ],
     categories: [
       { id: 'groceries', label: 'Groceries', groupId: 'food-drink' },
       { id: 'alcohol', label: 'Alcohol', groupId: 'food-drink' },
+      { id: 'transfers', label: 'Transfers', groupId: 'money' },
       { id: 'income', label: 'Income', groupId: 'other' },
       { id: 'uncategorised', label: 'Uncategorised', groupId: 'other' }
     ]
@@ -27,7 +32,8 @@ const ROWS = [
   t({ id: 'c', date: '2026-08-15', amount: -5, categoryId: 'uncategorised', merchant: 'Sunshine Deli' }),
   t({ id: 'd', date: '2026-08-20', amount: 4200, categoryId: 'income', merchant: 'Payroll' }),
   t({ id: 'e', date: '2026-08-21', amount: -50, categoryId: 'groceries', excluded: true }),
-  t({ id: 'f', date: '2026-08-22', amount: -30, accountId: 'card', cardSuffix: null, categoryId: 'uncategorised', merchant: 'Card charge' })
+  t({ id: 'f', date: '2026-08-22', amount: -30, accountId: 'card', cardSuffix: null, categoryId: 'uncategorised', merchant: 'Card charge' }),
+  t({ id: 'g', date: '2026-08-25', amount: -1500, categoryId: 'transfers', merchant: 'Transfer to savings' })
 ];
 
 const ctx = buildContext(SNAPSHOT);
@@ -39,7 +45,7 @@ test('buildContext maps categories to groups and cards to people', () => {
   assert.equal(ctx.cardOwners['8765'], 'Partner');
 });
 
-test('by default drops excluded and income rows', () => {
+test('by default drops excluded, income and transfer rows', () => {
   assert.equal(ids(applyFilters(ROWS, {}, ctx)), 'abcf');
 });
 
@@ -49,6 +55,30 @@ test('includeExcluded brings excluded rows back', () => {
 
 test('includeIncome brings income rows back', () => {
   assert.ok(applyFilters(ROWS, { includeIncome: true }, ctx).some((r) => r.id === 'd'));
+});
+
+test('transfers are dropped by default — they are movement between your own accounts, not spending', () => {
+  assert.equal(applyFilters(ROWS, {}, ctx).some((r) => r.id === 'g'), false);
+});
+
+test('includeTransfers brings transfer rows back', () => {
+  assert.ok(applyFilters(ROWS, { includeTransfers: true }, ctx).some((r) => r.id === 'g'));
+});
+
+test('the two opt-ins are independent of each other', () => {
+  const withIncome = applyFilters(ROWS, { includeIncome: true }, ctx);
+  assert.equal(withIncome.some((r) => r.id === 'g'), false, 'includeIncome must not also unhide transfers');
+
+  const withTransfers = applyFilters(ROWS, { includeTransfers: true }, ctx);
+  assert.equal(withTransfers.some((r) => r.id === 'd'), false, 'includeTransfers must not also unhide income');
+});
+
+test('an explicit transfers filter still yields nothing without the opt-in, matching income', () => {
+  // Same trade-off income already makes: the default exclusion wins over an
+  // explicit selection, so a Money-group filter shows the group's other
+  // categories only. Pinned so the behaviour is a decision, not a surprise.
+  assert.equal(applyFilters(ROWS, { categoryIds: ['transfers'] }, ctx).length, 0);
+  assert.equal(applyFilters(ROWS, { categoryIds: ['transfers'], includeTransfers: true }, ctx).length, 1);
 });
 
 test('empty arrays mean no constraint, not match-nothing', () => {
