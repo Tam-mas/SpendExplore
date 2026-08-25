@@ -554,10 +554,15 @@ test('two occurrences are never enough on their own', () => {
   assert.equal(result.series.length, 0);
 });
 
-test('excluded and income transactions are ignored', () => {
+test('excluded, income and transfer transactions are ignored', () => {
   const result = detectRecurring(snapshotOf([
     ...monthly('Salary', 4000, ['2026-06', '2026-07', '2026-08'], 'income'),
-    ...monthly('Transfer', -500, ['2026-06', '2026-07', '2026-08']).map((x) => ({ ...x, excluded: true }))
+    ...monthly('Hidden', -500, ['2026-06', '2026-07', '2026-08']).map((x) => ({ ...x, excluded: true })),
+    // A standing transfer to savings is a real commitment, but it is not
+    // SPEND — and this tab's headline number sits beside "Total spend",
+    // which excludes transfers. Counting it here would make the two figures
+    // mean different things.
+    ...monthly('Savings Transfer', -500, ['2026-06', '2026-07', '2026-08'], 'transfers')
   ]), { today: TODAY });
   assert.equal(result.series.length, 0);
 });
@@ -614,8 +619,16 @@ const addDays = (iso, n) => fromUTC(toUTC(iso) + Math.round(n) * MS_PER_DAY);
  * function and its tests stay deterministic.
  */
 export function detectRecurring(snapshot, { today = new Date().toISOString().slice(0, 10), strict = true } = {}) {
+  // Transfers are excluded for the same reason lib/query/filter.js excludes
+  // them from every spend total: they are movement between the household's own
+  // accounts, not spending. "Committed monthly" sits in the same KPI row as
+  // "Total spend", so counting a standing transfer to savings as committed
+  // SPEND would make the two figures mean different things.
   const transactions = (snapshot?.transactions ?? []).filter(
-    (txn) => !txn.excluded && txn.categoryId !== 'income' && txn.amount < 0
+    (txn) => !txn.excluded
+      && txn.categoryId !== 'income'
+      && txn.categoryId !== 'transfers'
+      && txn.amount < 0
   );
 
   const byMerchant = new Map();
