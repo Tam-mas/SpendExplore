@@ -22,7 +22,11 @@
 
 ## Sequencing
 
-Run **after** `2026-08-24-chart-interaction.md`. That plan introduces the tooltip, the multi-select popover and the custom-range inputs; styling them here avoids doing it twice.
+**This plan was run BEFORE `2026-08-24-chart-interaction.md`, deliberately.** The original note said to run it after, because that plan introduces the tooltip, the multi-select popover and the custom-range inputs, and styling them here would avoid doing it twice.
+
+Running it first costs little and buys something: each of the interaction plan's tasks already ships its own CSS, so nothing goes unstyled — and those styles will now be written against this plan's token layer from the start, rather than being retrofitted onto it. The one real consequence is that **surfaces from the interaction plan do not exist yet and must not be styled or checked here.** Do not add rules for `.viz-tooltip`, `.viz-multi*` or `.viz-custom-range`; the interaction plan adds them, using the tokens defined in Task 1.
+
+What *does* exist and must be covered here, having landed since this plan was written: the **comparison feature** (`.viz-delta*`, `.viz-ghost*`) and the **Recurring tab** (`.recurring-table`, `.recurring-price-change`, `.recurring-quiet`, `.recurring-confidence`).
 
 ---
 
@@ -512,8 +516,6 @@ Because `readFilterBar` queries by `[data-filter=...]` from `root`, the extra wr
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -4px 20px rgba(0,0,0,.22);
   }
-  /* A tooltip that follows a finger is useless and covers what was tapped. */
-  .viz-tooltip { display: none; }
 }
 ```
 
@@ -540,7 +542,7 @@ Expected: PASS. Tests asserting on table markup may need the `.table-scroll` wra
 npm run start:test
 ```
 
-At <http://127.0.0.1:5174>, with the browser narrowed to 375px, confirm: **the page body never scrolls horizontally on any tab**; the tab bar scrolls instead of wrapping badly; KPI tiles sit two-up and stay legible; the filter bar collapses and every control is full width; wide tables scroll inside their own box; the drill-down opens as a bottom sheet and closes; no tooltip appears on tap.
+At <http://127.0.0.1:5174>, with the browser narrowed to 375px, confirm: **the page body never scrolls horizontally on any tab** — Overview, Import, Review, Budgets and Recurring, all five; the tab bar scrolls instead of wrapping badly; KPI tiles sit two-up and stay legible; the filter bar collapses and every control is full width; wide tables scroll inside their own box (the Recurring table is the widest in the app at seven columns, so check that one); the drill-down opens as a bottom sheet and closes.
 
 - [ ] **Step 7: Commit**
 
@@ -601,7 +603,7 @@ Switch the OS to dark mode, reload <http://127.0.0.1:5174>, and walk every surfa
 3. **The drill-down panel**, which uses `box-shadow: -4px 0 16px rgba(0,0,0,.12)` — a shadow that is nearly invisible against a dark page. Deepen it in the dark block, or replace it with a stronger border.
 4. **The error banner** (`--warn` background with `#fff` text) — check contrast in dark mode, where `--warn` is the lighter `#e0a458`. White on that is likely to fail; use `--bg` for the text instead.
 5. **Budget status badges**, which use `color-mix(in srgb, var(--accent) 12%, transparent)`. At 12% over a dark surface the tint may be invisible; raise the percentage in the dark block.
-6. **The tooltip** from the interaction plan, which is `background: var(--fg); color: var(--bg)` — an inversion that should work in both themes, but confirm it.
+6. **The comparison and Recurring surfaces, which landed after this plan was written and have never been seen in dark mode:** `.viz-delta-up` uses `--warn` as both `color` and SVG `fill` — check it against a chart mark and inside a KPI tile; `.viz-ghost` is a dashed stroke at `opacity: .55` in the bar's own hue, which may vanish against a dark panel; and the Recurring tab's `.recurring-price-change`, `.recurring-quiet` (both `--warn`) and `.recurring-confidence` chip need the same read as the budget badges.
 7. **Native form controls** — `<select>`, `<input type="date">`, checkboxes — now that `color-scheme` is set.
 8. **Focus rings.** Tab through the whole page in both themes and confirm every interactive element shows a visible focus ring. Add one if any does not:
 
