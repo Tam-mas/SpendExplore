@@ -26,7 +26,11 @@ const COLLECTIONS = {
   // code to remove.
   views:      { file: 'views.json',      seed: () => [] },
   imports:    { file: 'imports.json',    seed: () => [] },
-  budgets:    { file: 'budgets.json',    seed: () => [] }
+  budgets:    { file: 'budgets.json',    seed: () => [] },
+  // User corrections to recurring detection, keyed by merchant. Detection
+  // itself is always recomputed from the ledger — only the corrections are
+  // stored, so a stale cache can never disagree with the data.
+  recurring:  { file: 'recurring.json',  seed: () => [] }
 };
 
 const exists = async (path) => {
