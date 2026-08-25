@@ -1,5 +1,9 @@
 import { detectRecurring, applyOverrides } from '../lib/recurring.js';
 import { formatMoney, escapeHtml } from './charts/scale.js';
+import { transactionsForSlice } from '../lib/query/slice-transactions.js';
+import { renderDrilldown } from './drilldown-panel.js';
+import { postRecurringOverride, patchTransaction, getSnapshot } from './api.js';
+import { guard } from './errors.js';
 
 /**
  * Compute the recurring picture for a snapshot: detect, then fold the user's
@@ -82,4 +86,92 @@ export function renderRecurring(snapshot, { today } = {}) {
     <p class="viz-note">Committed spend is what leaves your accounts before you decide anything. Click a row to see its transactions.</p>
     ${active.length ? table('Active', active) : ''}
     ${dormant.length ? table('Gone quiet — cancelled, or a payment that failed?', dormant) : ''}`;
+}
+
+/**
+ * Wire the Recurring tab into a live DOM node. Mirrors mountBudgets: same
+ * return shape, same drill-down reuse, and the session-hide checkbox is turned
+ * off because nothing on this tab reads the session-only excludeIds filter.
+ */
+export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
+  let current = snapshot;
+  let drilldown = null;
+  let reassignToken = 0;
+
+  const drawDrilldown = () => {
+    if (drilldown) {
+      const bucket = drilldown.refetch();
+      drilldown = bucket ? { ...drilldown, rows: bucket.rows, label: bucket.label } : null;
+    }
+    if (drilldownRoot) {
+      drilldownRoot.innerHTML = renderDrilldown(current, drilldown && { ...drilldown, hideable: false });
+      drilldownRoot.classList.toggle('hidden', !drilldown);
+    }
+  };
+
+  const draw = () => {
+    root.innerHTML = renderRecurring(current);
+    drawDrilldown();
+  };
+
+  function openDrilldown(merchant) {
+    const doFetch = () => transactionsForSlice(current, { filters: {}, sliceBy: 'merchant' }, merchant);
+    const bucket = doFetch();
+    drilldown = bucket ? { label: bucket.label, rows: bucket.rows, refetch: doFetch } : null;
+    draw();
+  }
+
+  function closeDrilldown() {
+    drilldown = null;
+    draw();
+  }
+
+  const ignore = guard(async (merchant) => {
+    await postRecurringOverride(merchant, 'ignored');
+    current = await getSnapshot();
+    draw();
+  });
+
+  // Same race guard as the Overview: discard a snapshot that arrives after a
+  // newer edit has already started, or a slow response silently reverts it.
+  const reassign = guard(async (id, categoryId) => {
+    const token = ++reassignToken;
+    await patchTransaction(id, { categoryId });
+    const result = await getSnapshot();
+    if (token !== reassignToken) return;
+    current = result;
+    draw();
+  });
+
+  const refresh = async () => {
+    current = await getSnapshot();
+    drilldown = null;
+    draw();
+  };
+
+  draw();
+
+  root.addEventListener('click', guard(async (event) => {
+    const ignoreButton = event.target.closest('[data-recurring-action="ignore"]');
+    if (ignoreButton) {
+      await ignore(ignoreButton.dataset.recurringMerchant);
+      return;
+    }
+    const row = event.target.closest('[data-recurring-merchant]');
+    if (row) openDrilldown(row.dataset.recurringMerchant);
+  }));
+
+  if (drilldownRoot) {
+    drilldownRoot.addEventListener('click', (event) => {
+      if (event.target.closest('[data-drilldown-action="close"]')) closeDrilldown();
+    });
+    drilldownRoot.addEventListener('change', (event) => {
+      const row = event.target.closest('[data-drilldown-id]');
+      if (row && event.target.dataset.drilldownAction === 'recategorise') {
+        reassign(row.dataset.drilldownId, event.target.value);
+      }
+    });
+  }
+
+  return { redraw: draw, refresh, closeDrilldown };
 }

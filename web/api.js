@@ -27,3 +27,6 @@ export const bulkCategorise = (payload) => postJson('/api/transactions/bulk', pa
 export const createCategory  = (payload) => postJson('/api/categories', payload);
 // `target` is `{ categoryId }` or `{ groupId }` — exactly one of the two.
 export const postBudget      = (target, amount) => postJson('/api/budgets', { ...target, amount });
+
+export const postRecurringOverride = (merchant, decision) =>
+  postJson('/api/recurring/override', { merchant, decision });

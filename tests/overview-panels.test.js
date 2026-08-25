@@ -178,3 +178,24 @@ test('the KPI row shows no delta chip when the baseline predates the ledger', ()
   assert.equal(html.includes('viz-delta-up'), false);
   assert.equal(html.includes('viz-delta-down'), false);
 });
+
+import { renderOverview as renderOverviewForRecurring } from '../web/overview-view.js';
+
+const recTxn = (over) => ({
+  id: 'x', date: '2026-08-15', amount: -16.99, rawDescription: 'R', merchant: 'Netflix',
+  accountId: 'a', cardSuffix: null, categoryId: 'subscriptions', categorySource: 'rule',
+  excluded: false, importId: 'i', note: null, ...over
+});
+
+test('the Overview KPI row reports the committed monthly total', () => {
+  const snapshot = {
+    accounts: [], recurring: [],
+    categories: {
+      groups: [{ id: 'lifestyle', label: 'Lifestyle' }],
+      categories: [{ id: 'subscriptions', label: 'Subscriptions', groupId: 'lifestyle' }]
+    },
+    transactions: ['2026-06', '2026-07', '2026-08'].map((m, i) => recTxn({ id: `n${i}`, date: `${m}-15` }))
+  };
+  const html = renderOverviewForRecurring(snapshot, {}, []);
+  assert.match(html, /Committed monthly/);
+});

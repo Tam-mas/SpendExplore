@@ -77,6 +77,7 @@ import { searchTransactions } from '../lib/query/search-transactions.js';
 import { renderDrilldown } from './drilldown-panel.js';
 import { patchTransaction, getSnapshot } from './api.js';
 import { guard } from './errors.js';
+import { recurringFor } from './recurring-view.js';
 
 const STORAGE_KEY = 'spendexplore.overview.panels';
 
@@ -141,6 +142,9 @@ function kpiRow(snapshot, globalFilters, compareMode = 'off') {
   // more pass over an in-memory array.
   const counts = compareQuery(snapshot, { ...spec, measure: 'count' }, compareMode);
   const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown' && !t.excluded).length;
+  // Goes through the same recurringFor() the Recurring tab renders from, so
+  // the two never compute this number two different ways and drift apart.
+  const committed = recurringFor(snapshot).committedMonthly;
 
   // Both grand-total rows are shaped like a query row so deltaChip formats
   // them with no special case. When comparison is off or unavailable,
@@ -153,6 +157,7 @@ function kpiRow(snapshot, globalFilters, compareMode = 'off') {
     <div class="kpi"><span>Total spend</span><b>${formatMoney(result.total)}</b>${deltaChip(totalRow, 'sum', compareMode)}</div>
     <div class="kpi"><span>Transactions</span><b>${result.stats.txnCount}</b>${deltaChip(countRow, 'count', compareMode)}</div>
     <div class="kpi"><span>Largest single</span><b>${formatMoney(result.stats.largest)}</b></div>
+    <div class="kpi"><span>Committed monthly</span><b>${formatMoney(committed)}</b></div>
     <div class="kpi"><span>Needs review</span><b class="${needsReview ? 'warn' : ''}">${needsReview}</b></div>
   </div>`;
 }

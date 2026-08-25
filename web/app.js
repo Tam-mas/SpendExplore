@@ -3,20 +3,24 @@ import { renderImportView } from './import-view.js';
 import { mountOverview } from './overview-view.js';
 import { mountReview } from './review-view.js';
 import { mountBudgets } from './budgets-view.js';
+import { mountRecurring } from './recurring-view.js';
 import { guard } from './errors.js';
 
 const views = {
   overview: document.querySelector('#view-overview'),
   import: document.querySelector('#view-import'),
   review: document.querySelector('#view-review'),
-  budgets: document.querySelector('#view-budgets')
+  budgets: document.querySelector('#view-budgets'),
+  recurring: document.querySelector('#view-recurring')
 };
 const drilldownRoot = document.querySelector('#drilldown');
 const budgetsDrilldownRoot = document.querySelector('#budgets-drilldown');
+const recurringDrilldownRoot = document.querySelector('#recurring-drilldown');
 
 let overview = null;
 let review = null;
 let budgets = null;
+let recurring = null;
 // Guards against two refresh() calls running concurrently — each drives an
 // independent chain of per-view getSnapshot() calls, and without this, two
 // overlapping calls could resolve out of order with no guarantee the more
@@ -34,6 +38,8 @@ async function refresh() {
     else review = mountReview(views.review, { snapshot });
     if (budgets) await budgets.refresh();
     else budgets = mountBudgets(views.budgets, { snapshot, drilldownRoot: budgetsDrilldownRoot });
+    if (recurring) await recurring.refresh();
+    else recurring = mountRecurring(views.recurring, { snapshot, drilldownRoot: recurringDrilldownRoot });
   } finally {
     refreshing = false;
   }
@@ -52,6 +58,7 @@ function showTab(name) {
   // hidden, or the panel keeps floating over whatever tab you switch to.
   overview?.closeDrilldown?.();
   budgets?.closeDrilldown?.();
+  recurring?.closeDrilldown?.();
 }
 
 document.querySelector('#tabs').addEventListener('click', (event) => {
