@@ -82,6 +82,30 @@ test('a series whose next charge is long overdue is dormant and excluded from th
   assert.equal(result.committedMonthly, 16.99);
 });
 
+// Dormancy boundary: nextExpected = lastDate + round(cadence.days) days.
+// For monthly (days 30.44), round(30.44) = 30, so 2026-01-15 + 30 = 2026-02-14.
+// grace = max(3, 30.44 * 0.25) = 7.61, and the switch to dormant happens when
+// overdueDays (today - nextExpected) exceeds that grace, not merely reaches it.
+test('a monthly series just inside the grace period stays active with no missed periods', () => {
+  const result = detectRecurring(snapshotOf(
+    monthly('Boundary', -20, ['2025-11', '2025-12', '2026-01'])
+  ), { today: '2026-02-21' }); // nextExpected + 7 days; 7 <= grace (7.61)
+
+  const series = find(result, 'Boundary');
+  assert.equal(series.status, 'active');
+  assert.equal(series.missedPeriods, 0);
+});
+
+test('a monthly series just past the grace period becomes dormant', () => {
+  const result = detectRecurring(snapshotOf(
+    monthly('Boundary', -20, ['2025-11', '2025-12', '2026-01'])
+  ), { today: '2026-02-22' }); // nextExpected + 8 days; 8 > grace (7.61)
+
+  const series = find(result, 'Boundary');
+  assert.equal(series.status, 'dormant');
+  assert.equal(series.missedPeriods, 1);
+});
+
 test('a price rise is reported with the date it took effect', () => {
   const result = detectRecurring(snapshotOf([
     t({ id: 'n1', merchant: 'Netflix', amount: -16.99, date: '2026-05-15' }),

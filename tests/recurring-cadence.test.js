@@ -65,3 +65,24 @@ test('detectCadence rejects a sequence that is mostly skips', () => {
   // Two of three gaps are doubled — too sparse to call a monthly commitment.
   assert.equal(detectCadence(['2026-01-15', '2026-03-15', '2026-05-15', '2026-06-15']), null);
 });
+
+// The doubled-gap window (multiple 2) scales with the cadence's own period,
+// so a weekly "skip" at ~14 days lands squarely inside fortnightly's PRIMARY
+// band, and a fortnightly "skip" at ~28 days lands inside monthly's primary
+// band. Calling either a skip would be exactly the coincidence-as-commitment
+// error this module exists to avoid — so these must resolve to no cadence at
+// all, not a false "weekly, one skip" or "fortnightly, one skip".
+test('detectCadence does not treat a weekly skip as recurring when the gap is actually a fortnight', () => {
+  // Gaps 7, 11 — 11 days is squarely inside fortnightly's own primary band.
+  assert.equal(detectCadence(['2026-01-01', '2026-01-08', '2026-01-19']), null);
+});
+
+test('detectCadence does not treat a weekly skip as recurring when the gap lands in the dead zone', () => {
+  // Gaps 7, 18 — 18 days is not a legitimate period for anything.
+  assert.equal(detectCadence(['2026-01-01', '2026-01-08', '2026-01-26']), null);
+});
+
+test('detectCadence does not treat a fortnightly skip as recurring when the gap is actually a month', () => {
+  // Gaps 14, 25 — 25 days is inside monthly's own primary band.
+  assert.equal(detectCadence(['2026-01-01', '2026-01-15', '2026-02-09']), null);
+});
