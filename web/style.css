@@ -1,31 +1,65 @@
 :root {
-  --bg: #ffffff; --fg: #1a1c1e; --muted: #6b7280;
-  --line: #e3e5e8; --accent: #2563eb; --warn: #b45309; --bar: #93b8f5;
+  /* A 1.2 modular scale. Six steps is enough for a dashboard and few enough
+     that every size on screen is a deliberate choice from a short list. */
+  --step--1: 0.79rem;
+  --step-0:  0.9375rem;   /* 15px — unchanged body size */
+  --step-1:  1.125rem;
+  --step-2:  1.35rem;
+  --step-3:  1.62rem;
+  --step-4:  1.95rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Every figure on screen goes through this stack. Aligned columns of money
+     are worth more here than any typeface could be, and it costs no bytes. */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Paper rather than pure white, ink rather than pure black — the one degree
+     of warmth this design takes. */
+  --bg: #fcfcfb;
+  --fg: #1a1c1e;
+  --muted: #6b7280;
+  --line: #e3e5e8;
+  --surface-raised: #ffffff;
+  --accent: #2563eb;
+  --warn: #b45309;
+  --bar: #93b8f5;
 }
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16181c; --fg: #e8eaed; --muted: #9aa0a6;
-    --line: #2c2f34; --accent: #6ea8fe; --warn: #e0a458; --bar: #3b5f9e;
+    --bg: #16181c;
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --line: #2c2f34;
+    --surface-raised: #1d2025;
+    --accent: #6ea8fe;
+    --warn: #e0a458;
+    --bar: #3b5f9e;
   }
 }
 * { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--fg);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-header {
-  display: flex; align-items: baseline; gap: 24px;
-  padding: 16px 24px; border-bottom: 1px solid var(--line);
-}
-h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: var(--step-0)/1.55 var(--font-sans); }
+header { display: flex; align-items: baseline; gap: var(--space-5); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); }
+h1 { font-size: var(--step-1); margin: 0; letter-spacing: -0.02em; font-weight: 600; }
 nav button {
   background: none; border: 1px solid transparent; color: var(--muted);
   padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;
 }
 nav button.active { color: var(--fg); border-color: var(--line); background: var(--line); }
-main { padding: 24px; max-width: 980px; }
+main { padding: var(--space-5); max-width: 1400px; margin: 0 auto; }
 .hidden { display: none; }
-.card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); background: var(--surface-raised); }
 .dropzone {
   border: 2px dashed var(--line); border-radius: 10px; padding: 40px;
   text-align: center; color: var(--muted); cursor: pointer;
@@ -37,10 +71,7 @@ th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--lin
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bar { height: 8px; background: var(--bar); border-radius: 4px; }
-.kpis { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.kpi { flex: 1 1 140px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-.kpi span { display: block; font-size: 11px; text-transform: uppercase; color: var(--muted); }
-.kpi b { font-size: 22px; font-weight: 600; }
+.kpis { display: flex; gap: var(--space-3); margin-bottom: var(--space-5); flex-wrap: wrap; }
 .warn { color: var(--warn); }
 button.primary {
   background: var(--accent); color: #fff; border: none;
@@ -50,23 +81,37 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .group-row td { font-weight: 600; }
 .cat-row td:first-child { padding-left: 28px; color: var(--muted); }
 .empty { color: var(--muted); padding: 32px 0; text-align: center; }
+/* One rule, applied wherever a number is rendered, rather than repeated
+   per component — new components inherit the treatment by using the class. */
+.num, td.num, th.num,
+.kpi b,
+.viz-value, .viz-total, .viz-delta,
+.review-meta,
+.budgets-table input[type="number"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.kpi b { font-size: var(--step-4); font-weight: 600; line-height: 1.15; }
+.kpi span { display: block; font-size: var(--step--1); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: var(--space-1); }
+.kpi { flex: 1 1 150px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--surface-raised); }
 
 /* ---- charts ---- */
 :root {
-  --viz-surface: #fcfcfb;
+  --viz-surface: var(--surface-raised);
   --viz-text-primary: #0b0b0b;
   --viz-text-secondary: #52514e;
   --viz-grid: #e3e5e8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --viz-surface: #1a1a19;
+    --viz-surface: var(--surface-raised);
     --viz-text-primary: #ffffff;
     --viz-text-secondary: #c3c2b7;
     --viz-grid: #2c2f34;
   }
 }
-.viz-panel { border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 20px; background: var(--viz-surface); }
+.viz-panel { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4); background: var(--surface-raised); }
 .viz-panel-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
 .viz-panel-head h3 { margin: 0; font-size: 15px; }
 .viz-controls { display: flex; gap: 12px; flex-wrap: wrap; }
