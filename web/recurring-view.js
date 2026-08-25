@@ -29,9 +29,9 @@ const priceChangeNote = (item) => {
   return `<p class="recurring-price-change">Price ${direction} from ${formatMoney(from)} to ${formatMoney(to)} on ${escapeHtml(date)}</p>`;
 };
 
-function row(item) {
+function row(item, nextLabel) {
   const merchant = escapeHtml(item.merchant);
-  const quiet = item.status === 'dormant'
+  const nextCell = nextLabel === 'Missed'
     ? `<span class="recurring-quiet">${item.missedPeriods} missed</span>`
     : escapeHtml(item.nextExpected);
 
@@ -46,46 +46,65 @@ function row(item) {
       <td class="num">${priceCell(item)}</td>
       <td class="num">${formatMoney(item.monthlyCost)}</td>
       <td class="num">${formatMoney(item.annualCost)}</td>
-      <td>${quiet}</td>
+      <td>${nextCell}</td>
       <td><button data-recurring-action="ignore" data-recurring-merchant="${merchant}">Not recurring</button></td>
     </tr>`;
 }
 
-const table = (caption, items) => `
+// `nextLabel` names the last column: a dormant row shows how long it's been
+// quiet, not a date it's overdue for, so it gets its own header rather than
+// living under "Next" as if it were still expected.
+const table = (caption, items, nextLabel = 'Next') => `
   <table class="recurring-table">
     <caption class="viz-caption">${escapeHtml(caption)}</caption>
     <thead>
       <tr>
         <th scope="col">Merchant</th><th scope="col">Cadence</th>
         <th scope="col" class="num">Amount</th><th scope="col" class="num">Per month</th>
-        <th scope="col" class="num">Per year</th><th scope="col">Next</th><th scope="col"></th>
+        <th scope="col" class="num">Per year</th><th scope="col">${escapeHtml(nextLabel)}</th><th scope="col"></th>
       </tr>
     </thead>
-    <tbody>${items.map(row).join('')}</tbody>
+    <tbody>${items.map((item) => row(item, nextLabel)).join('')}</tbody>
   </table>`;
 
 /**
  * Pure render of the Recurring tab. `today` is injected so the output is
  * deterministic under test.
+ *
+ * The active series are split into two tables: high-confidence entries (the
+ * ones summed into the "Committed monthly"/"Committed yearly" headline
+ * tiles above) and medium-confidence "Possibly recurring" entries, which are
+ * still detected and listed with their own subtotal but deliberately left
+ * out of a number presented as a commitment — see lib/recurring.js's
+ * committedTotals(). A `forced: true` override (the user explicitly marking
+ * a merchant recurring) is always confidence: 'medium' by construction, so
+ * it lands here too, with no special-casing needed.
  */
 export function renderRecurring(snapshot, { today } = {}) {
-  const { series, committedMonthly, committedAnnual } = recurringFor(snapshot, today ? { today } : {});
+  const {
+    series, committedMonthly, committedAnnual, uncertainMonthly, uncertainAnnual
+  } = recurringFor(snapshot, today ? { today } : {});
   if (!series.length) {
     return `<p class="empty">Nothing recurring detected yet — a charge needs to appear at least three times on a consistent cadence before it counts.</p>`;
   }
 
   const active = series.filter((s) => s.status === 'active');
+  const high = active.filter((s) => s.confidence === 'high');
+  const uncertain = active.filter((s) => s.confidence === 'medium');
   const dormant = series.filter((s) => s.status === 'dormant');
 
   return `
     <div class="kpis">
       <div class="kpi"><span>Committed monthly</span><b>${formatMoney(committedMonthly)}</b></div>
       <div class="kpi"><span>Committed yearly</span><b>${formatMoney(committedAnnual)}</b></div>
-      <div class="kpi"><span>Subscriptions</span><b>${active.length} active</b></div>
+      <div class="kpi"><span>Subscriptions</span><b>${high.length} active</b></div>
     </div>
-    <p class="viz-note">Committed spend is what leaves your accounts before you decide anything. Click a row to see its transactions.</p>
-    ${active.length ? table('Active', active) : ''}
-    ${dormant.length ? table('Gone quiet — cancelled, or a payment that failed?', dormant) : ''}`;
+    <p class="viz-note">Committed spend is what leaves your accounts before you decide anything, counting only the confidently-detected charges above. Click a row to see its transactions.</p>
+    ${high.length ? table('Active', high) : ''}
+    ${uncertain.length ? `
+    <p class="viz-note recurring-uncertain-note">Possibly recurring — fewer occurrences, a skipped period, or a variable amount, so these are not counted above. Subtotal: ${formatMoney(uncertainMonthly)}/month, ${formatMoney(uncertainAnnual)}/year.</p>
+    ${table('Possibly recurring', uncertain)}` : ''}
+    ${dormant.length ? table('Gone quiet — cancelled, or a payment that failed?', dormant, 'Missed') : ''}`;
 }
 
 /**

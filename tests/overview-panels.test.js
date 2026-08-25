@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_PANELS, renderOverview } from '../web/overview-view.js';
 import { aggregateOverview } from '../web/overview-view.js';
+import { createPanel as createPanelForCompare } from '../web/panel.js';
+import { renderOverview as renderOverviewForCompare } from '../web/overview-view.js';
+import { renderOverview as renderOverviewForRecurring } from '../web/overview-view.js';
 
 const SNAPSHOT = {
   categories: {
@@ -118,9 +121,6 @@ test('the search box is empty by default', () => {
   assert.match(html, /data-search[^>]*value=""/);
 });
 
-import { createPanel as createPanelForCompare } from '../web/panel.js';
-import { renderOverview as renderOverviewForCompare } from '../web/overview-view.js';
-
 const cmpTxn = (over) => ({
   id: 'x', date: '2026-08-10', amount: -10, rawDescription: 'R', merchant: 'M',
   accountId: 'a', cardSuffix: null, categoryId: 'groceries', categorySource: 'rule',
@@ -179,23 +179,58 @@ test('the KPI row shows no delta chip when the baseline predates the ledger', ()
   assert.equal(html.includes('viz-delta-down'), false);
 });
 
-import { renderOverview as renderOverviewForRecurring } from '../web/overview-view.js';
-
 const recTxn = (over) => ({
   id: 'x', date: '2026-08-15', amount: -16.99, rawDescription: 'R', merchant: 'Netflix',
   accountId: 'a', cardSuffix: null, categoryId: 'subscriptions', categorySource: 'rule',
   excluded: false, importId: 'i', note: null, ...over
 });
 
-test('the Overview KPI row reports the committed monthly total', () => {
-  const snapshot = {
-    accounts: [], recurring: [],
-    categories: {
-      groups: [{ id: 'lifestyle', label: 'Lifestyle' }],
-      categories: [{ id: 'subscriptions', label: 'Subscriptions', groupId: 'lifestyle' }]
-    },
-    transactions: ['2026-06', '2026-07', '2026-08'].map((m, i) => recTxn({ id: `n${i}`, date: `${m}-15` }))
-  };
-  const html = renderOverviewForRecurring(snapshot, {}, []);
-  assert.match(html, /Committed monthly/);
+const RECURRING_SNAPSHOT = {
+  accounts: [
+    { id: 'a', label: 'Card A', cardOwners: {} },
+    { id: 'b', label: 'Card B', cardOwners: {} }
+  ],
+  recurring: [],
+  categories: {
+    groups: [{ id: 'lifestyle', label: 'Lifestyle' }],
+    categories: [{ id: 'subscriptions', label: 'Subscriptions', groupId: 'lifestyle' }]
+  },
+  // 4 occurrences each so both series are HIGH confidence and land in the
+  // committed total (see lib/recurring.js's confidence rule).
+  transactions: [
+    ...['2026-05', '2026-06', '2026-07', '2026-08'].map((m, i) =>
+      recTxn({ id: `n${i}`, date: `${m}-15`, accountId: 'a', merchant: 'Netflix', amount: -16.99 })),
+    ...['2026-05', '2026-06', '2026-07', '2026-08'].map((m, i) =>
+      recTxn({ id: `s${i}`, date: `${m}-15`, accountId: 'b', merchant: 'Spotify', amount: -13.99 }))
+  ]
+};
+
+// `today` is threaded through so this reads a deterministic figure instead
+// of the wall clock — before this fix, renderOverview had no `today` seam at
+// all, so this test could only assert the label's presence and a regression
+// rendering $0.00/$NaN/a negative number would have passed silently.
+test('the Overview KPI row reports the actual committed monthly figure under a fixed today', () => {
+  const html = renderOverviewForRecurring(RECURRING_SNAPSHOT, {}, [], {}, 0, '', 'off', '2026-08-24');
+  assert.match(html, /Committed monthly<\/span><b>\$30\.98<\/b>/);
+});
+
+// The committed-monthly tile must scope to the same account/person/group/
+// category filters as its neighbours in the KPI row (Total spend,
+// Transactions, Largest single) — filtering to one account previously left
+// this tile showing every account's subscriptions.
+test('the committed monthly tile is scoped to the active account filter, like its neighbours', () => {
+  const html = renderOverviewForRecurring(
+    RECURRING_SNAPSHOT, { accountIds: ['a'] }, [], {}, 0, '', 'off', '2026-08-24'
+  );
+  assert.match(html, /Committed monthly<\/span><b>\$16\.99<\/b>/);
+});
+
+// A date filter (a specific month) must NOT reach recurring detection — a
+// subscription needs its whole history to establish a cadence, and a
+// one-month window would zero out every series.
+test('the committed monthly tile ignores a date/month filter so cadence detection still sees full history', () => {
+  const html = renderOverviewForRecurring(
+    RECURRING_SNAPSHOT, { month: '2026-08' }, [], {}, 0, '', 'off', '2026-08-24'
+  );
+  assert.match(html, /Committed monthly<\/span><b>\$30\.98<\/b>/);
 });

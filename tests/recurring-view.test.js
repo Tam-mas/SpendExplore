@@ -27,10 +27,14 @@ test('an empty ledger explains itself instead of rendering an empty table', () =
   assert.equal(html.includes('<table'), false);
 });
 
+// Both series here have only 3 occurrences (medium confidence), so with the
+// high-confidence-only committed headline this now needs 4 to demonstrate a
+// real committed sum — see the "possibly recurring" tests below for the
+// medium-confidence path.
 test('the header states the total commitment in both monthly and annual terms', () => {
   const html = renderRecurring(snapshotOf([
-    ...series('Netflix', -16.99, ['2026-06', '2026-07', '2026-08']),
-    ...series('Spotify', -13.99, ['2026-06', '2026-07', '2026-08'])
+    ...series('Netflix', -16.99, ['2026-05', '2026-06', '2026-07', '2026-08']),
+    ...series('Spotify', -13.99, ['2026-05', '2026-06', '2026-07', '2026-08'])
   ]), TODAY);
   assert.match(html, /\$30\.98/);
   assert.match(html, /\$371\.76/);
@@ -38,12 +42,24 @@ test('the header states the total commitment in both monthly and annual terms', 
 });
 
 test('each row shows cadence, current price, annual cost and next expected date', () => {
-  const html = renderRecurring(snapshotOf(series('Netflix', -16.99, ['2026-06', '2026-07', '2026-08'])), TODAY);
+  const html = renderRecurring(snapshotOf(
+    series('Netflix', -16.99, ['2026-05', '2026-06', '2026-07', '2026-08'])
+  ), TODAY);
   assert.match(html, /Netflix/);
   assert.match(html, /Monthly/);
   assert.match(html, /\$16\.99/);
   assert.match(html, /\$203\.88/);
-  assert.match(html, /2026-09-14/);
+  assert.match(html, /2026-09-15/);
+});
+
+test('a medium-confidence series is listed under "Possibly recurring" with its own subtotal, and excluded from the committed headline', () => {
+  const html = renderRecurring(snapshotOf(
+    series('Netflix', -16.99, ['2026-06', '2026-07', '2026-08']) // only 3 occurrences: medium
+  ), TODAY);
+  assert.match(html, /Committed monthly<\/span><b>\$0\.00/);
+  assert.match(html, /Possibly recurring/);
+  assert.match(html, /Netflix/);
+  assert.match(html, /Subtotal: \$16\.99\/month, \$203\.88\/year/);
 });
 
 test('a price change is called out with both prices', () => {

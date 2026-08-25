@@ -119,7 +119,7 @@ test('the override route rejects a bad body', async () => {
     assert.equal((await post({ merchant: '', decision: 'ignored' })).status, 400);
     assert.equal((await post({ merchant: 'Netflix', decision: 'nope' })).status, 400);
     assert.equal((await post({ merchant: 'x'.repeat(201), decision: 'ignored' })).status, 400);
-    assert.equal((await post(['array']).catch(() => ({ status: 400 }))).status, 400);
+    assert.equal((await post(['array'])).status, 400);
   });
 });
 

@@ -78,6 +78,7 @@ import { renderDrilldown } from './drilldown-panel.js';
 import { patchTransaction, getSnapshot } from './api.js';
 import { guard } from './errors.js';
 import { recurringFor } from './recurring-view.js';
+import { applyFilters, buildContext } from '../lib/query/filter.js';
 
 const STORAGE_KEY = 'spendexplore.overview.panels';
 
@@ -133,7 +134,7 @@ function searchBox(query = '') {
   </div>`;
 }
 
-function kpiRow(snapshot, globalFilters, compareMode = 'off') {
+function kpiRow(snapshot, globalFilters, compareMode = 'off', today) {
   const spec = { filters: globalFilters, sliceBy: 'category' };
   const result = compareQuery(snapshot, { ...spec, measure: 'sum' }, compareMode);
   // A second pass, for the count's OWN baseline. The transaction count moves
@@ -142,9 +143,23 @@ function kpiRow(snapshot, globalFilters, compareMode = 'off') {
   // more pass over an in-memory array.
   const counts = compareQuery(snapshot, { ...spec, measure: 'count' }, compareMode);
   const needsReview = (snapshot.transactions ?? []).filter((t) => t.categorySource === 'unknown' && !t.excluded).length;
+
   // Goes through the same recurringFor() the Recurring tab renders from, so
-  // the two never compute this number two different ways and drift apart.
-  const committed = recurringFor(snapshot).committedMonthly;
+  // the two never compute this number two different ways and drift apart —
+  // but scoped to the same account/person/group/category filters as its
+  // neighbours in this row, so filtering to one account doesn't show that
+  // account's spend/count/largest beside a committed figure covering every
+  // account. Date filters are deliberately NOT applied: a subscription's
+  // cadence needs its full history to be detected at all, and a one-month
+  // window would destroy every series (dates get set below regardless of
+  // what's in globalFilters, so this can't silently start scoping by date
+  // if a caller ever adds one).
+  const { dateFrom, dateTo, ...recurringFilters } = globalFilters;
+  const scopedSnapshot = {
+    ...snapshot,
+    transactions: applyFilters(snapshot.transactions ?? [], recurringFilters, buildContext(snapshot))
+  };
+  const committed = recurringFor(scopedSnapshot, today ? { today } : {}).committedMonthly;
 
   // Both grand-total rows are shaped like a query row so deltaChip formats
   // them with no special case. When comparison is off or unavailable,
@@ -170,7 +185,7 @@ function kpiRow(snapshot, globalFilters, compareMode = 'off') {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '', compareMode = 'off') {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '', compareMode = 'off', today) {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
@@ -183,7 +198,7 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
     : '';
 
   return `
-    ${kpiRow(snapshot, queryFilters, compareMode)}
+    ${kpiRow(snapshot, queryFilters, compareMode, today)}
     ${hiddenBanner}
     ${searchBox(searchQuery)}
     ${renderFilterBar(snapshot, uiFilters, compareMode)}
