@@ -77,6 +77,11 @@ button.primary {
   background: var(--accent); color: #fff; border: none;
   padding: 9px 18px; border-radius: 6px; cursor: pointer; font-size: 14px;
 }
+/* Found the same way as the error banner: dark mode's --accent is the pale
+   #6ea8fe, and white text on it measures ~2.4:1. */
+@media (prefers-color-scheme: dark) {
+  button.primary { color: var(--bg); }
+}
 button.primary[disabled] { opacity: .5; cursor: default; }
 .group-row td { font-weight: 600; }
 .cat-row td:first-child { padding-left: 28px; color: var(--muted); }
@@ -160,9 +165,13 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-search { margin: 4px 0 16px; }
 .viz-search input { width: 100%; max-width: 320px; font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); }
 .viz-delta { font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.viz-delta-up { color: var(--warn); fill: var(--warn); }
-.viz-delta-down { color: var(--muted); fill: var(--muted); }
-.viz-delta-flat { color: var(--muted); fill: var(--muted); }
+/* Two classes, not one — ".kpi span" (a class+type selector) otherwise outranks
+   a bare ".viz-delta-up" and silently repaints every up-delta inside a KPI tile
+   back to --muted. Found by actually looking at a KPI tile in dark mode: the
+   arrow glyph was there, the warn colour was not. */
+.viz-delta.viz-delta-up { color: var(--warn); fill: var(--warn); }
+.viz-delta.viz-delta-down { color: var(--muted); fill: var(--muted); }
+.viz-delta.viz-delta-flat { color: var(--muted); fill: var(--muted); }
 .kpi .viz-delta { display: block; margin-top: 3px; }
 /* Baseline marks are decoration behind the real value — they must never
    intercept the click that opens the drill-down panel. */
@@ -199,12 +208,24 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
   box-shadow: -4px 0 16px rgba(0,0,0,.12); overflow-y: auto; z-index: 20;
   padding: 20px;
 }
+/* A shadow cast in black is the light-mode trick — on a page that is already
+   near-black it reads as nothing. The 1px border is the only edge dark mode
+   actually has, so widen and lighten it instead of relying on the shadow. */
+@media (prefers-color-scheme: dark) {
+  .drilldown { border-left: 2px solid var(--line); box-shadow: -4px 0 24px rgba(0,0,0,.6); }
+}
 .drilldown.hidden { display: none; }
 .error-banner {
   position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
   max-width: min(560px, calc(100vw - 32px)); z-index: 30;
   background: var(--warn); color: #fff; border-radius: 8px;
   padding: 10px 16px; box-shadow: 0 4px 16px rgba(0,0,0,.2); font-size: 14px;
+}
+/* Dark mode's --warn is the lighter #e0a458 — white text on it measures
+   ~2.2:1, well under AA. --bg is near-black in dark mode, so it does the
+   job the way it does for the light-mode ink-on-paper pairing. */
+@media (prefers-color-scheme: dark) {
+  .error-banner { color: var(--bg); }
 }
 .error-banner.hidden { display: none; }
 .drilldown-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
@@ -268,4 +289,29 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: 0 -4px 20px rgba(0,0,0,.22);
   }
+}
+
+/* Motion earns its place by showing WHICH bar moved when a filter changes —
+   not by announcing that the page loaded. */
+@media (prefers-reduced-motion: no-preference) {
+  .viz-bar rect,
+  .viz-stacked rect {
+    transition: width 220ms cubic-bezier(.2, .7, .3, 1),
+                height 220ms cubic-bezier(.2, .7, .3, 1),
+                y 220ms cubic-bezier(.2, .7, .3, 1);
+  }
+  .viz-panel, .kpi, .card { transition: border-color 160ms ease, background-color 160ms ease; }
+  nav button { transition: background-color 120ms ease, color 120ms ease; }
+  .drilldown { animation: drilldown-in 180ms cubic-bezier(.2, .7, .3, 1); }
+}
+
+@keyframes drilldown-in {
+  from { transform: translateX(12px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+:where(a, button, select, summary, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }

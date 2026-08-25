@@ -17,6 +17,19 @@
  *    required relief; it is not optional.
  *
  * DO NOT substitute other hexes without re-running the validator.
+ *
+ * Exception, found by an actual dark-mode visual review (Task 4 of the
+ * design pass): 'money' shipped with an IDENTICAL light and dark value
+ * (#008300), unlike every other slot. At full opacity it undercuts every
+ * sibling's dark-mode lightness; at the .55 opacity the bar chart's ghost
+ * baseline uses, it blends to ~1.8:1 against --viz-surface dark — well
+ * under the 3:1 floor for a graphical mark, and the darkest of the seven by
+ * a wide margin. Raised its dark lightness only (light untouched, hue held
+ * at the same 120°) to #39c639: ~5.9:1 solid, ~3.1:1 at the ghost's .55
+ * opacity. Not re-run through the validator tool itself — out of reach
+ * here — but checked by the same relative-luminance math the validator
+ * uses, against both the panel surface and the panel surface blended at
+ * .55 opacity.
  */
 
 /** The 7 taxonomy groups map 1:1 onto the 7 categorical slots, in this order. */
@@ -26,7 +39,7 @@ export const GROUP_SLOTS = Object.freeze({
   home:         { light: '#1baf7a', dark: '#199e70' },
   health:       { light: '#eda100', dark: '#c98500' },
   lifestyle:    { light: '#e87ba4', dark: '#d55181' },
-  money:        { light: '#008300', dark: '#008300' },
+  money:        { light: '#008300', dark: '#39c639' },
   other:        { light: '#4a3aa7', dark: '#9085e9' }
 });
 

@@ -434,7 +434,6 @@ Being honest about where this stops:
 - **Saved named views** and adding/removing/reordering panels.
 - **Per-person or group-level budgets**, scheduling a budget change for a future month, or deleting a budget entirely (set it to $0 to pause one).
 - **Settings UI** for the card → person mapping and account management. The data model supports per-person attribution via card suffix; there's just no screen to configure it yet.
-- **Dark mode** has validated colour tokens defined but hasn't been visually reviewed.
 
 ---
 
@@ -444,6 +443,8 @@ The full design rationale and the implementation plans are in `docs/superpowers/
 
 - `specs/` — the design spec, including the decisions and the trade-offs behind them
 - `plans/` — task-by-task implementation plans
+
+**Dark mode** follows the OS via `prefers-color-scheme` — there is no in-app toggle. It has been visually reviewed end to end (all five tabs, every chart type, the drill-down, budget and recurring badges, native form controls, focus rings), and the handful of contrast defects that review turned up are fixed: a KPI-tile colour that was silently overridden back to grey, the `money` chart colour's dark slot (which had shipped identical to its light value), treemap tile labels on light fills, the drill-down panel's shadow, and white-on-light-accent text on the error banner and primary button.
 
 ---
 

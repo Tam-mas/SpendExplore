@@ -5,6 +5,25 @@ const WIDTH = 600;
 const HEIGHT = 320;
 
 /**
+ * Direct labels are hard-coded white in CSS, which fails on a tile light
+ * enough to need dark ink instead — the lightest categorical steps (e.g. the
+ * "lifestyle" group's paler within-group tints) measure under 4:1 for white
+ * text. WCAG relative luminance decides per tile, independent of app theme:
+ * a light fill needs dark ink regardless of whether the page itself is dark.
+ */
+function relativeLuminance(hex) {
+  const channel = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const [r, g, b] = [1, 3, 5].map((i) => channel(parseInt(hex.slice(i, i + 2), 16) / 255));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** White text if it clears 4.5:1 on this fill, otherwise near-black ink. */
+function inkFor(hex) {
+  const contrastWithWhite = 1.05 / (relativeLuminance(hex) + 0.05);
+  return contrastWithWhite >= 4.5 ? '#ffffff' : '#0b0b0b';
+}
+
+/**
  * Slice-and-dice treemap laid out along the shorter side each pass, which keeps
  * tiles reasonably square without the full squarified algorithm's complexity.
  * Values must be positive magnitudes, largest first.
@@ -69,9 +88,10 @@ export function renderTreemap(result, { mode = 'light', title = '', colourFor } 
     const tile = tiles[i];
     const colour = useCategorical ? colourFor(row) : sequentialColour(Math.abs(row.value) / max, mode);
     const showLabel = tile.w > 70 && tile.h > 34;
+    const ink = inkFor(colour);
     const label = showLabel
-      ? `<text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 20).toFixed(1)}" class="viz-tile-label">${escapeHtml(row.label)}</text>
-         <text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 36).toFixed(1)}" class="viz-tile-value">${formatMeasure(row.value, measure)}</text>`
+      ? `<text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 20).toFixed(1)}" class="viz-tile-label" style="fill:${ink}">${escapeHtml(row.label)}</text>
+         <text x="${(tile.x + 8).toFixed(1)}" y="${(tile.y + 36).toFixed(1)}" class="viz-tile-value" style="fill:${ink}">${formatMeasure(row.value, measure)}</text>`
       : '';
     return `<g>
       <rect x="${tile.x.toFixed(1)}" y="${tile.y.toFixed(1)}" width="${tile.w.toFixed(1)}" height="${tile.h.toFixed(1)}"
