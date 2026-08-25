@@ -158,11 +158,15 @@ Create `lib/recurring.js`:
  * bands matches nothing, which is the honest answer: 20 days is not a cadence.
  */
 export const CADENCES = Object.freeze([
-  { id: 'weekly',      label: 'Weekly',      days: 7,      tolerance: 2 },
-  { id: 'fortnightly', label: 'Fortnightly', days: 14,     tolerance: 3 },
-  { id: 'monthly',     label: 'Monthly',     days: 30.44,  tolerance: 5.5 },
-  { id: 'quarterly',   label: 'Quarterly',   days: 91.31,  tolerance: 9 },
-  { id: 'annual',      label: 'Annual',      days: 365.25, tolerance: 20 }
+  // `perYear` is stated, not derived from `days`. A monthly subscription is
+  // billed 12 times a year, not 365.25/30.44 = 11.999 times — deriving it
+  // leaves cents of drift in every annual figure, and the annual number is
+  // the one people can act on.
+  { id: 'weekly',      label: 'Weekly',      days: 7,      tolerance: 2,   perYear: 365.25 / 7 },
+  { id: 'fortnightly', label: 'Fortnightly', days: 14,     tolerance: 3,   perYear: 365.25 / 14 },
+  { id: 'monthly',     label: 'Monthly',     days: 30.44,  tolerance: 5.5, perYear: 12 },
+  { id: 'quarterly',   label: 'Quarterly',   days: 91.31,  tolerance: 9,   perYear: 4 },
+  { id: 'annual',      label: 'Annual',      days: 365.25, tolerance: 20,  perYear: 1 }
 ]);
 
 const MS_PER_DAY = 86400000;
@@ -467,8 +471,8 @@ test('a monthly subscription is detected with its annualised cost', () => {
   assert.equal(netflix.typicalAmount, 16.99);
   assert.equal(netflix.amountKind, 'fixed');
   assert.equal(netflix.confidence, 'high');
-  // 16.99 * (365.25 / 30.44) = 203.87
-  assert.equal(netflix.annualCost, 203.87);
+  // A monthly subscription is billed 12 times a year: 16.99 * 12.
+  assert.equal(netflix.annualCost, 203.88);
   assert.equal(netflix.monthlyCost, 16.99);
 });
 
@@ -655,7 +659,7 @@ export function detectRecurring(snapshot, { today = new Date().toISOString().sli
     const overdueDays = Math.round((toUTC(today) - toUTC(nextExpected)) / MS_PER_DAY);
     const missedPeriods = overdueDays > grace ? Math.floor(overdueDays / cadence.days) + 1 : 0;
 
-    const annualCost = round2(profile.typical * (365.25 / cadence.days));
+    const annualCost = round2(profile.typical * cadence.perYear);
 
     series.push({
       merchant,

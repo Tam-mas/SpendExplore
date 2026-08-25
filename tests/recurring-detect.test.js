@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectRecurring } from '../lib/recurring.js';
+import { detectRecurring, CADENCES } from '../lib/recurring.js';
 
 const t = (over) => ({
   id: 'x', date: '2026-08-10', amount: -10, rawDescription: 'R', merchant: 'M',
@@ -43,8 +43,8 @@ test('a monthly subscription is detected with its annualised cost', () => {
   assert.equal(netflix.typicalAmount, 16.99);
   assert.equal(netflix.amountKind, 'fixed');
   assert.equal(netflix.confidence, 'high');
-  // 16.99 * (365.25 / 30.44) = 203.87
-  assert.equal(netflix.annualCost, 203.87);
+  // A monthly subscription is billed 12 times a year: 16.99 * 12.
+  assert.equal(netflix.annualCost, 203.88);
   assert.equal(netflix.monthlyCost, 16.99);
 });
 
@@ -165,4 +165,33 @@ test('confidence drops to medium on a thin or skipped series', () => {
     { today: TODAY }
   );
   assert.equal(find(result, 'Thin').confidence, 'medium');
+});
+
+test('cadences that divide the year cleanly annualise exactly, with no rounding drift', () => {
+  // Guards the double-rounding this originally had (typical -> monthly ->
+  // x12), which left quarterly and annual bills cents away from what is
+  // actually charged.
+  const quarterly = detectRecurring(snapshotOf([
+    t({ id: 'q1', merchant: 'Water', amount: -300, date: '2025-11-01' }),
+    t({ id: 'q2', merchant: 'Water', amount: -300, date: '2026-02-01' }),
+    t({ id: 'q3', merchant: 'Water', amount: -300, date: '2026-05-01' }),
+    t({ id: 'q4', merchant: 'Water', amount: -300, date: '2026-08-01' })
+  ]), { today: TODAY });
+  assert.equal(find(quarterly, 'Water').annualCost, 1200);
+  assert.equal(find(quarterly, 'Water').monthlyCost, 100);
+
+  const annual = detectRecurring(snapshotOf([
+    t({ id: 'y1', merchant: 'Insurance', amount: -1200, date: '2024-03-01' }),
+    t({ id: 'y2', merchant: 'Insurance', amount: -1200, date: '2025-03-01' }),
+    t({ id: 'y3', merchant: 'Insurance', amount: -1200, date: '2026-03-01' })
+  ]), { today: TODAY });
+  assert.equal(find(annual, 'Insurance').annualCost, 1200);
+  assert.equal(find(annual, 'Insurance').monthlyCost, 100);
+});
+
+test('every cadence states its own periods per year rather than deriving it from days', () => {
+  const byId = Object.fromEntries(CADENCES.map((c) => [c.id, c.perYear]));
+  assert.equal(byId.monthly, 12);
+  assert.equal(byId.quarterly, 4);
+  assert.equal(byId.annual, 1);
 });
