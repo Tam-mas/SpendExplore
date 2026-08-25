@@ -61,9 +61,11 @@ export function renderDrilldown(snapshot, state) {
     </header>
     <p class="viz-note">${rows.length} transaction${rows.length === 1 ? '' : 's'} · ${formatMoney(total)}</p>
     ${hideNote}
+    <div class="table-scroll">
     <table class="viz-table drilldown-table">
       <thead><tr><th>Date</th><th>Merchant</th><th class="num">Amount</th><th>Category</th>${hideHeader}</tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
+    </div>
   </div>`;
 }

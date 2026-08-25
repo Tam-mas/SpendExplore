@@ -27,9 +27,11 @@ export function renderTable(result, { title = '' } = {}) {
     </tr>`).join('');
 
   return `
+  <div class="table-scroll">
   <table class="viz-table">
     <caption class="viz-caption">${escapeHtml(title)}</caption>
     <thead><tr><th scope="col">Name</th><th scope="col" class="num">Value</th>${hasBaseline ? '<th scope="col" class="num">Δ</th>' : ''}<th scope="col" class="num">Txns</th><th scope="col">Shape</th></tr></thead>
     <tbody>${body}</tbody>
-  </table>`;
+  </table>
+  </div>`;
 }

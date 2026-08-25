@@ -113,10 +113,12 @@ export function renderBudgets(snapshot, state = {}) {
   }).join('');
 
   return `
+  <div class="table-scroll">
   <table class="viz-table budgets-table">
     <thead><tr><th>Category</th><th>This month</th><th>Status</th><th class="num">Available</th><th></th></tr></thead>
     <tbody>${body}</tbody>
-  </table>`;
+  </table>
+  </div>`;
 }
 
 /** The inclusive dateFrom/dateTo for one "YYYY-MM" month. */

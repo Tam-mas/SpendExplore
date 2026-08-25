@@ -67,19 +67,22 @@ export function renderFilterBar(snapshot, filters = {}, compareMode = 'off') {
     .map((m) => ({ value: m, label: BASELINE_LABELS[m] }));
 
   return `
-  <div class="viz-filter-bar">
-    ${select('month', 'Period', options.months, filters.month ?? '', 'All time')}
-    ${select('accountIds', 'Account', options.accounts, (filters.accountIds ?? [])[0] ?? '', 'All accounts')}
-    ${select('people', 'Person', options.people, (filters.people ?? [])[0] ?? '', 'Both of us')}
-    ${select('groupIds', 'Group', options.groups, (filters.groupIds ?? [])[0] ?? '', 'All groups')}
-    <label class="viz-control">
-      <span class="viz-control-label">Compare</span>
-      <select data-filter="compare">
-        <option value="off"${mode === 'off' ? ' selected' : ''}>${escapeHtml(BASELINE_LABELS.off)}</option>
-        ${compareOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === mode ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
-      </select>
-    </label>
-  </div>`;
+  <details class="viz-filter-bar-wrap" open>
+    <summary class="viz-filter-summary">Filters</summary>
+    <div class="viz-filter-bar">
+      ${select('month', 'Period', options.months, filters.month ?? '', 'All time')}
+      ${select('accountIds', 'Account', options.accounts, (filters.accountIds ?? [])[0] ?? '', 'All accounts')}
+      ${select('people', 'Person', options.people, (filters.people ?? [])[0] ?? '', 'Both of us')}
+      ${select('groupIds', 'Group', options.groups, (filters.groupIds ?? [])[0] ?? '', 'All groups')}
+      <label class="viz-control">
+        <span class="viz-control-label">Compare</span>
+        <select data-filter="compare">
+          <option value="off"${mode === 'off' ? ' selected' : ''}>${escapeHtml(BASELINE_LABELS.off)}</option>
+          ${compareOptions.map((o) => `<option value="${escapeHtml(o.value)}"${o.value === mode ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+  </details>`;
 }
 
 /** Turn a `month` selection into the dateFrom/dateTo a query spec wants. */

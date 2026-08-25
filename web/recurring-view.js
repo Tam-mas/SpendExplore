@@ -55,6 +55,7 @@ function row(item, nextLabel) {
 // quiet, not a date it's overdue for, so it gets its own header rather than
 // living under "Next" as if it were still expected.
 const table = (caption, items, nextLabel = 'Next') => `
+  <div class="table-scroll">
   <table class="recurring-table">
     <caption class="viz-caption">${escapeHtml(caption)}</caption>
     <thead>
@@ -65,7 +66,8 @@ const table = (caption, items, nextLabel = 'Next') => `
       </tr>
     </thead>
     <tbody>${items.map((item) => row(item, nextLabel)).join('')}</tbody>
-  </table>`;
+  </table>
+  </div>`;
 
 /**
  * Pure render of the Recurring tab. `today` is injected so the output is
