@@ -30,6 +30,19 @@ export function deltaClass(delta) {
   return direction ? `viz-delta viz-delta-${direction}` : 'viz-delta';
 }
 
+/**
+ * Whether ANY row in a result carries a baseline — the single "is comparison
+ * active" check every chart renderer needs before drawing ghost marks or a
+ * delta column. `0` is a real baseline (spend genuinely fell to zero);
+ * `null`/`undefined` means no comparison ran. Centralised here, next to
+ * `deltaChip` which already encodes the identical null-check per row, so the
+ * rule can't quietly drift between chart-bar.js, chart-line.js and
+ * chart-table.js.
+ */
+export function hasBaseline(rows = []) {
+  return rows.some((r) => r.baseline !== null && r.baseline !== undefined);
+}
+
 export function deltaChip(row = {}, measure = 'sum', mode = 'off') {
   if (row.baseline === null || row.baseline === undefined) return '';
   const text = formatDelta(row.delta, row.deltaPct, measure);

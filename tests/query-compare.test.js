@@ -243,3 +243,90 @@ test('a current-window category truncated by spec.limit is not reported as disap
     'target still exists this period — just not displayed — so it must not be reported as disappeared'
   );
 });
+
+// --- Final review C1/I2: a time slice's key IS the period, so a key-based
+// join against an earlier, non-overlapping window can never match. ---
+
+test('C1: sliceBy month never fabricates a baseline — key spaces are disjoint by construction', () => {
+  const result = compareQuery(
+    SNAPSHOT,
+    { filters: { dateFrom: '2026-08-01', dateTo: '2026-08-31' }, sliceBy: 'month', measure: 'sum' },
+    'trailing3'
+  );
+  assert.equal(result.baselineAvailable, false);
+  assert.equal(result.baselineTotal, null);
+  assert.deepEqual(result.baselineWindows, []);
+  assert.deepEqual(result.disappeared, []);
+  assert.ok(result.rows.length > 0);
+  for (const row of result.rows) {
+    assert.equal(row.baseline, null);
+    assert.equal(row.delta, null);
+    assert.equal(row.deltaPct, null);
+    assert.equal(row.isNew, false);
+  }
+});
+
+test('C1: sliceBy week never fabricates a baseline either', () => {
+  const result = compareQuery(
+    SNAPSHOT,
+    { filters: { dateFrom: '2026-08-01', dateTo: '2026-08-31' }, sliceBy: 'week', measure: 'sum' },
+    'prevPeriod'
+  );
+  assert.equal(result.baselineAvailable, false);
+  for (const row of result.rows) {
+    assert.equal(row.baseline, null);
+    assert.equal(row.delta, null);
+    assert.equal(row.deltaPct, null);
+  }
+});
+
+// --- Final review C2: earliestDate must respect the spec's own filters,
+// not scan every transaction in the ledger unconditionally. ---
+
+test('C2: a baseline window before a filtered account existed is excluded, not averaged in as zero', () => {
+  const snap = {
+    categories: CATEGORIES,
+    accounts: [],
+    transactions: [
+      ...SNAPSHOT.transactions,
+      // Account "b" only has history from July onward.
+      t({ id: 'b1', date: '2026-07-15', amount: -200, accountId: 'b', categoryId: 'groceries' }),
+      t({ id: 'b2', date: '2026-08-15', amount: -300, accountId: 'b', categoryId: 'groceries' })
+    ]
+  };
+  const result = compareQuery(
+    snap,
+    { filters: { accountIds: ['b'], dateFrom: '2026-08-01', dateTo: '2026-08-31' }, sliceBy: 'category', measure: 'sum' },
+    'trailing3'
+  );
+  // June predates account b's own history and must not be counted, even
+  // though account "a" has June data — the spec filters to "b" only.
+  assert.equal(result.baselineWindows.length, 1);
+  const groceries = rowFor(result, 'groceries');
+  assert.equal(groceries.baseline, -200);
+  assert.equal(groceries.delta, 100);
+  assert.equal(groceries.deltaPct, 0.5); // truth: 200 -> 300 is +50%, not +200%
+});
+
+test('C2: earliestDate ignores income and excluded rows the display never shows', () => {
+  const snap = {
+    categories: CATEGORIES,
+    accounts: [],
+    transactions: [
+      t({ id: 'inc1', date: '2026-01-05', amount: 5000, categoryId: 'income' }),
+      t({ id: 'y1', date: '2026-07-10', amount: -200, categoryId: 'groceries' }),
+      t({ id: 'a1', date: '2026-08-10', amount: -300, categoryId: 'groceries' })
+    ]
+  };
+  const result = compareQuery(
+    snap,
+    { filters: { dateFrom: '2026-08-01', dateTo: '2026-08-31' }, sliceBy: 'category', measure: 'sum' },
+    'trailing3'
+  );
+  // Only July has any queryable (non-income) spend history, so June and May
+  // must be excluded — the January income row must not stand in for it.
+  assert.equal(result.baselineWindows.length, 1);
+  const groceries = rowFor(result, 'groceries');
+  assert.equal(groceries.baseline, -200);
+  assert.equal(groceries.deltaPct, 0.5); // truth: 200 -> 300 is +50%, not +350%
+});

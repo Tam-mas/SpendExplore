@@ -1,5 +1,5 @@
 import { linearScale, niceTicks, formatMeasure, escapeHtml } from './scale.js';
-import { formatDelta, deltaClass } from '../delta.js';
+import { formatDelta, deltaClass, hasBaseline as rowsHaveBaseline } from '../delta.js';
 
 const WIDTH = 600;
 const HEIGHT = 220;
@@ -12,6 +12,14 @@ const TIME_SLICES = new Set(['week', 'month']);
  * Line — change over time. Only valid for a chronological slice; anything else
  * gets an explanation rather than a misleading line through unordered buckets.
  * Single series, so no legend: the panel title names it.
+ *
+ * The ghost-baseline rendering below (`viz-ghost-line`, the last-point delta
+ * label) is currently dormant in production: `compareQuery()` never supplies
+ * a baseline for a time slice (week/month), because a time slice's key IS
+ * the period, so an earlier baseline window's keys can never join against
+ * it — see lib/query/compare.js. Left in place and still covered by its own
+ * unit tests (hand-built rows), since it becomes reachable the moment period
+ * comparison gains a way to express a shifted multi-bucket window.
  */
 export function renderLine(result, { title = '', colourFor } = {}) {
   const rows = result.rows ?? [];
@@ -27,7 +35,7 @@ export function renderLine(result, { title = '', colourFor } = {}) {
   const width = Math.max(WIDTH, PAD.left + PAD.right + minPlotW);
   const plotW = width - PAD.left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
-  const hasBaseline = rows.some((r) => r.baseline !== null && r.baseline !== undefined);
+  const hasBaseline = rowsHaveBaseline(rows);
   // The domain covers baselines too, so a collapsed month's baseline line does
   // not run off the top of the plot.
   const maxValue = Math.max(...rows.map((r) => Math.max(Math.abs(r.value), Math.abs(r.baseline ?? 0))), 1);
@@ -78,8 +86,12 @@ export function renderLine(result, { title = '', colourFor } = {}) {
         // 16px further up. A point near the top of the domain pushes that
         // above y=0 — off the declared viewBox — so flip it below the point
         // instead of clamping, which keeps it clear of the value label
-        // regardless of how close the point sits to the top.
-        const y = p.y - 26 < 0 ? p.y + 18 : p.y - 26;
+        // regardless of how close the point sits to the top. Flip at y=8,
+        // not y=0: text y is the baseline, and an 11px font's ascender rises
+        // ~8px above it, so a label placed at y=0..8 still gets its glyph
+        // tops clipped by the viewport even though the baseline itself is
+        // in bounds.
+        const y = p.y - 26 < 8 ? p.y + 18 : p.y - 26;
         return `<text x="${p.x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="end" class="${deltaClass(lastRow.delta)}">${escapeHtml(formatDelta(lastRow.delta, lastRow.deltaPct, measure))}</text>`;
       })()
     : '';

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { linearScale, niceTicks, formatMoney, formatMeasure, escapeHtml } from '../web/charts/scale.js';
-import { renderBar } from '../web/charts/chart-bar.js';
+import { renderBar, VALUE_WIDTH, DELTA_WIDTH } from '../web/charts/chart-bar.js';
 import { renderTable } from '../web/charts/chart-table.js';
 
 const RESULT = {
@@ -182,7 +182,7 @@ test('the bar scale accounts for a baseline taller than every real bar', () => {
     { key: 'groceries', label: 'Groceries', value: -50, count: 1, baseline: -500, delta: -450, deltaPct: -0.9 }
   ]));
   const widths = [...svg.matchAll(/width="([\d.]+)"/g)].map((m) => Number(m[1]));
-  const plotWidth = 600 - 150 - (96 + 74);
+  const plotWidth = 600 - 150 - (VALUE_WIDTH + DELTA_WIDTH);
   assert.ok(widths.every((w) => w <= plotWidth + 1), `a mark overflowed the plot: ${widths}`);
 });
 
@@ -196,7 +196,7 @@ test('a row with a zero baseline still renders without a ghost bar of negative w
 
 // Fix-pass tests (finding 1): the delta column must not be narrower than
 // the value column when its content is at least as long.
-const VALUE_COLUMN_WIDTH = 96; // must match VALUE_WIDTH in chart-bar.js
+const VALUE_COLUMN_WIDTH = VALUE_WIDTH;
 
 test('finding 1: an isNew delta with no baseline percentage does not collide with the value column', () => {
   // No prior-period spend to divide by, so formatDelta falls back to an

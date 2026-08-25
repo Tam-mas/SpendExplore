@@ -1,16 +1,16 @@
 import { linearScale, formatMeasure, escapeHtml } from './scale.js';
-import { formatDelta, deltaClass } from '../delta.js';
+import { formatDelta, deltaClass, hasBaseline as rowsHaveBaseline } from '../delta.js';
 
 const ROW_HEIGHT = 34;
 const BAR_HEIGHT = 16;      // thin marks
 const LABEL_WIDTH = 150;
-const VALUE_WIDTH = 96;
+export const VALUE_WIDTH = 96;
 // The delta column holds formatDelta's output, which for an isNew row (no
 // baseline to take a percentage of) falls back to an arrow-prefixed money
 // string ("▲ $12,345.67") — never shorter than the plain value string next
 // to it. Give it at least as much room as the value column, plus space for
 // the "▲ " prefix and a visible gap so the two columns never touch.
-const DELTA_WIDTH = VALUE_WIDTH + 18; // only reserved when a comparison is active
+export const DELTA_WIDTH = VALUE_WIDTH + 18; // only reserved when a comparison is active
 const GAP = 2;              // 2px surface gap between adjacent fills
 
 /**
@@ -28,7 +28,7 @@ export function renderBar(result, { mode = 'light', colourFor, title = '' } = {}
     return `<svg role="img" aria-label="${escapeHtml(title)}: no data" viewBox="0 0 600 60" width="100%"><text x="300" y="34" text-anchor="middle" class="viz-empty">No data for these filters</text></svg>`;
   }
 
-  const hasBaseline = rows.some((r) => r.baseline !== null && r.baseline !== undefined);
+  const hasBaseline = rowsHaveBaseline(rows);
   const width = 600;
   const valueWidth = VALUE_WIDTH + (hasBaseline ? DELTA_WIDTH : 0);
   const plotWidth = width - LABEL_WIDTH - valueWidth;

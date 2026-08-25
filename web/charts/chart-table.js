@@ -1,5 +1,5 @@
 import { formatMeasure, escapeHtml, concentrationLine } from './scale.js';
-import { formatDelta, deltaClass } from '../delta.js';
+import { formatDelta, deltaClass, hasBaseline as rowsHaveBaseline } from '../delta.js';
 
 /**
  * Table view. Always available for every panel — it is the accessible relief
@@ -15,7 +15,7 @@ export function renderTable(result, { title = '' } = {}) {
   if (!rows.length) return `<p class="viz-empty">No data for these filters</p>`;
 
   const measure = result.meta?.measure;
-  const hasBaseline = rows.some((r) => r.baseline !== null && r.baseline !== undefined);
+  const hasBaseline = rowsHaveBaseline(rows);
 
   const body = rows.map((row) => `
     <tr>

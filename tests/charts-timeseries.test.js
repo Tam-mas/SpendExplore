@@ -243,8 +243,19 @@ test('the line chart y-domain covers a baseline higher than every point', () => 
   const svg = renderLineForBaseline(monthResult([
     { key: '2026-08', label: 'Aug 2026', value: -50, count: 1, baseline: -900, delta: -850, deltaPct: -0.94 }
   ]));
-  const ys = [...svg.matchAll(/cy="([\d.]+)"/g)].map((m) => Number(m[1]));
-  assert.ok(ys.every((y) => y >= 0), `a marker was plotted above the viewBox: ${ys}`);
+  // The mark that actually overflows an under-sized y-domain is the ghost
+  // baseline polyline, not the value markers (`<circle cy>`) — those plot
+  // row.value only and stay inside the domain regardless of whether
+  // baselines are covered. Read the ghost line's own point list.
+  const ghostMatch = svg.match(/<polyline points="([^"]+)"[^>]*class="viz-ghost-line"/);
+  assert.ok(ghostMatch, 'expected a ghost baseline polyline');
+  // HEIGHT in web/charts/chart-line.js — kept in sync manually since it
+  // isn't exported.
+  const HEIGHT = 220;
+  const ys = ghostMatch[1].trim().split(/\s+/).map((pair) => Number(pair.split(',')[1]));
+  assert.ok(ys.length > 0);
+  assert.ok(ys.every((y) => y >= 0 && y <= HEIGHT),
+    `a ghost-line point was plotted outside the viewBox: ${ys}`);
 });
 
 test('the table adds a delta column only when a baseline exists', () => {
