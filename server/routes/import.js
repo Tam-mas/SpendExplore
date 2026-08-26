@@ -7,6 +7,12 @@ import { sendJson, readBody } from '../http.js';
 // reject it up front with a 400 instead of letting that play out row by row.
 const KNOWN_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'];
 
+// accountId is user-typed free text (the import preview's editable Account
+// field), not a fixed enum like a category id — cap its length the same way
+// recurring.js caps a merchant name, so a pathological value can't bloat the
+// accounts collection we read on every snapshot.
+const MAX_ACCOUNT_ID_LENGTH = 60;
+
 // A column index in a mappingOverride's `mapping` must be a non-negative
 // integer (a real column position) or null (column not present in this
 // file) — anything else (a string, a float, NaN) is not a value ingest()'s
@@ -186,8 +192,21 @@ export function createImportRoutes(store, serialized) {
         return { error: 'Each file needs a filename and text' };
       }
     }
-    if (body.accountId !== undefined && typeof body.accountId !== 'string') {
-      return { error: 'accountId must be a string' };
+    if (body.accountId !== undefined) {
+      if (typeof body.accountId !== 'string') {
+        return { error: 'accountId must be a string' };
+      }
+      // Trim before validating/storing so " CC " and "CC" are the same
+      // account rather than silently becoming two rows in the accounts
+      // collection and two entries in the Account filter dropdown.
+      const trimmed = body.accountId.trim();
+      if (trimmed === '') {
+        return { error: 'accountId must not be empty' };
+      }
+      if (trimmed.length > MAX_ACCOUNT_ID_LENGTH) {
+        return { error: `accountId must be ${MAX_ACCOUNT_ID_LENGTH} characters or fewer` };
+      }
+      body.accountId = trimmed;
     }
     if (!isValidMappingOverride(body.mappingOverride)) {
       return { error: 'mappingOverride is not a recognised format' };
@@ -227,8 +246,11 @@ export function createImportRoutes(store, serialized) {
   // write in the app. See server/routes/budgets.js's handleCreate for the
   // same pattern.
   async function handleCommit(res, body, files) {
-    const [ledger, rules] = await Promise.all([store.read('ledger'), store.read('rules')]);
+    const [ledger, rules, accounts] = await Promise.all([
+      store.read('ledger'), store.read('rules'), store.read('accounts')
+    ]);
     const day = localDay(new Date());
+    const accountId = body.accountId ?? 'default';
     const results = runIngest(files, body.accountId, body.mappingOverride, ledger, rules, day);
 
     // Back up before mutating, so a bad import is always recoverable
@@ -237,6 +259,20 @@ export function createImportRoutes(store, serialized) {
     const added = results.flatMap((r) => r.transactions);
     await store.write('ledger', [...ledger, ...added]);
 
+    // The Account filter dropdown is built from this collection (see
+    // filterOptions() in web/filter-bar.js) — without a matching record here,
+    // a transaction's accountId is just an opaque string nothing can ever
+    // show or filter by. Only append when missing: a second import to an
+    // account that already has a record must not produce a second one.
+    if (!accounts.some((a) => a.id === accountId)) {
+      const newAccounts = [...accounts, { id: accountId, label: accountId }];
+      // If this write fails, the ledger write above already landed but
+      // nothing describes the account it landed on — compensate the ledger
+      // back to its pre-commit state rather than leave that half-applied,
+      // same reasoning as the ledger/imports compensation below.
+      await writeWithCompensation(store, 'accounts', newAccounts, 'ledger', ledger);
+    }
+
     const importsBefore = await store.read('imports');
     const newImports = [
       ...importsBefore,
@@ -244,7 +280,7 @@ export function createImportRoutes(store, serialized) {
         importId: r.importId,
         filename: r.filename,
         timestamp: r.timestamp,
-        accountId: body.accountId ?? 'default',
+        accountId,
         rowsRead: r.summary.rowsRead,
         added: r.summary.added,
         duplicates: r.summary.duplicates,

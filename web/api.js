@@ -13,8 +13,8 @@ const postJson = (path, payload) =>
   });
 
 export const getSnapshot    = () => request('/api/snapshot');
-export const previewImport  = (files) => postJson('/api/import/preview', { files });
-export const commitImport   = (files) => postJson('/api/import/commit', { files });
+export const previewImport  = (files, accountId) => postJson('/api/import/preview', { files, accountId });
+export const commitImport   = (files, accountId) => postJson('/api/import/commit', { files, accountId });
 
 export const patchTransaction = (id, payload) =>
   request(`/api/transactions/${encodeURIComponent(id)}`, {

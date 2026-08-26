@@ -332,3 +332,98 @@ test('a syntactically invalid JSON body on commit is a clean 400, not a 500', as
     assert.match((await res.json()).error, /json/i);
   });
 });
+
+// --- Account attribution ---
+
+test('committing with an accountId stamps it on every resulting transaction', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+    const ledger = await store.read('ledger');
+    assert.equal(ledger.length, 6);
+    assert.ok(ledger.every((t) => t.accountId === 'CC'));
+  });
+});
+
+test('committing with a new accountId writes an account record so the filter can find it', async () => {
+  await withServer(async (base, store) => {
+    assert.deepEqual(await store.read('accounts'), []);
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+    const accounts = await store.read('accounts');
+    assert.equal(accounts.length, 1);
+    assert.equal(accounts[0].id, 'CC');
+    assert.ok(accounts[0].label);
+  });
+});
+
+test('committing twice with the same accountId does not duplicate the account record', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+    await post(base, '/api/import/commit', {
+      files: [{ filename: 'b.csv', text: '01/08/2026,"ALDI STORES PRESTON VICAU","acct","cat","-44.43"' }],
+      accountId: 'CC'
+    });
+    const accounts = await store.read('accounts');
+    assert.equal(accounts.length, 1, 'expected exactly one CC account record, not one per commit');
+  });
+});
+
+test('an import with no accountId still stamps and records "default", preserving old behaviour', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files });
+    const ledger = await store.read('ledger');
+    assert.ok(ledger.every((t) => t.accountId === 'default'));
+    const accounts = await store.read('accounts');
+    assert.ok(accounts.some((a) => a.id === 'default'));
+  });
+});
+
+test('two different accountIds used across commits each get their own account record', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+    await post(base, '/api/import/commit', {
+      files: [{ filename: 'b.csv', text: '01/08/2026,"ALDI STORES PRESTON VICAU","acct","cat","-44.43"' }],
+      accountId: 'default'
+    });
+    const accounts = await store.read('accounts');
+    assert.equal(accounts.length, 2);
+    assert.ok(accounts.some((a) => a.id === 'CC'));
+    assert.ok(accounts.some((a) => a.id === 'default'));
+  });
+});
+
+test('accountId is trimmed before being stamped and recorded', async () => {
+  await withServer(async (base, store) => {
+    await post(base, '/api/import/commit', { files, accountId: '  CC  ' });
+    const ledger = await store.read('ledger');
+    assert.ok(ledger.every((t) => t.accountId === 'CC'));
+    const accounts = await store.read('accounts');
+    assert.equal(accounts.length, 1);
+    assert.equal(accounts[0].id, 'CC');
+  });
+});
+
+test('rejects an empty or whitespace-only accountId', async () => {
+  await withServer(async (base) => {
+    for (const bad of ['', '   ']) {
+      const res = await post(base, '/api/import/preview', { files, accountId: bad });
+      assert.equal(res.status, 400, `accountId ${JSON.stringify(bad)}: expected 400`);
+      assert.match((await res.json()).error, /accountId/i);
+    }
+  });
+});
+
+test('rejects an accountId over the length cap', async () => {
+  await withServer(async (base) => {
+    const res = await post(base, '/api/import/preview', { files, accountId: 'x'.repeat(200) });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /accountId/i);
+  });
+});
+
+test('the Account filter dropdown is populated end to end after a CC import', async () => {
+  await withServer(async (base) => {
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+    const snapshot = await (await fetch(`${base}/api/snapshot`)).json();
+    assert.ok(snapshot.accounts.some((a) => a.id === 'CC'), 'expected CC in the accounts collection served in the snapshot');
+  });
+});
