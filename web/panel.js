@@ -8,7 +8,7 @@ import { escapeHtml, concentrationLine } from './charts/scale.js';
 
 const SLICE_LABELS = {
   category: 'Category', group: 'Group', merchant: 'Merchant', person: 'Person',
-  account: 'Account', weekday: 'Day of week', week: 'Week', month: 'Month',
+  card: 'Card', account: 'Account', weekday: 'Day of week', week: 'Week', month: 'Month',
   amountBand: 'Amount band'
 };
 

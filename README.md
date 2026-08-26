@@ -228,7 +228,7 @@ The Overview opens with a KPI row, a global filter bar, and three panels.
 
 | Control | Options |
 |---|---|
-| **Slice by** | Category · Group · Merchant · Person · Account · Day of week · Week · Month · Amount band |
+| **Slice by** | Category · Group · Merchant · Person · Card · Account · Day of week · Week · Month · Amount band |
 | **Measure** | Total $ · # Txns · Average · Median · % of total |
 | **Chart** | Bar · Table · Donut · Treemap · Line · Stacked · Dots |
 

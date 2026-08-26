@@ -22,7 +22,7 @@ const t = (over) => ({
 
 test('SLICES lists every supported dimension', () => {
   assert.deepEqual([...SLICES].sort(), [
-    'account', 'amountBand', 'category', 'group', 'merchant', 'month', 'person', 'week', 'weekday'
+    'account', 'amountBand', 'card', 'category', 'group', 'merchant', 'month', 'person', 'week', 'weekday'
   ]);
   assert.deepEqual([...TIME_SLICES], ['week', 'month']);
 });
@@ -106,4 +106,27 @@ test('does not mutate its input', () => {
   const before = JSON.stringify(rows);
   groupBy(rows, 'category', ctx);
   assert.equal(JSON.stringify(rows), before);
+});
+
+test('groups by card, keyed on the last-4 suffix, with an explicit bucket for no card', () => {
+  const out = groupBy([
+    t({ id: 'a', cardSuffix: '4321' }),
+    t({ id: 'b', cardSuffix: '8765' }),
+    t({ id: 'c', cardSuffix: null })
+  ], 'card', ctx);
+  const byKey = new Map(out.map((g) => [g.key, g]));
+  assert.equal(byKey.get('4321').label, '•• 4321');
+  assert.equal(byKey.get('8765').label, '•• 8765');
+  assert.equal(byKey.get('none').label, 'No card number');
+});
+
+test('card slice does not conflate two different suffixes even when neither maps to a person', () => {
+  // Unlike the person slice (which folds every unmapped card into "Joint"),
+  // card is raw — two real, distinct card numbers must stay two buckets even
+  // with no cardOwners entry for either.
+  const out = groupBy([
+    t({ id: 'a', cardSuffix: '1111' }),
+    t({ id: 'b', cardSuffix: '2222' })
+  ], 'card', ctx);
+  assert.deepEqual(out.map((g) => g.key).sort(), ['1111', '2222']);
 });
