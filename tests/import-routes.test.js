@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { startServer, createApp } from '../server/index.js';
 import { createStore } from '../server/store.js';
+import { filterOptions } from '../web/filter-bar.js';
 
 const CSV = await readFile(new URL('./fixtures/sample-commbank.csv', import.meta.url), 'utf8');
 
@@ -425,5 +426,80 @@ test('the Account filter dropdown is populated end to end after a CC import', as
     await post(base, '/api/import/commit', { files, accountId: 'CC' });
     const snapshot = await (await fetch(`${base}/api/snapshot`)).json();
     assert.ok(snapshot.accounts.some((a) => a.id === 'CC'), 'expected CC in the accounts collection served in the snapshot');
+    const options = filterOptions(snapshot);
+    assert.ok(
+      options.accounts.some((a) => a.value === 'CC'),
+      'expected filterOptions() (the function that actually builds the dropdown) to offer CC'
+    );
   });
+});
+
+// Important 2: a ledger seeded with pre-existing 'default' transactions
+// (the historical ~2000-row bank ledger, before any CC import ever ran)
+// has no matching accounts record for 'default' — the app has always
+// written transactions with accountId 'default' without ever writing an
+// accounts entry for it. Importing CC must not leave 'default' permanently
+// unselectable: handleCommit's accounts write should union in every
+// accountId already present in the ledger, not just the one being
+// committed right now.
+test('the Account filter can still select the pre-existing bank account after a CC import', async () => {
+  await withServer(async (base, store) => {
+    const existingLedger = [
+      { id: 't1', date: '2026-01-01', merchant: 'Coles', amount: -10, accountId: 'default', categoryId: 'groceries', categorySource: 'rule' }
+    ];
+    await store.write('ledger', existingLedger);
+
+    await post(base, '/api/import/commit', { files, accountId: 'CC' });
+
+    const snapshot = await (await fetch(`${base}/api/snapshot`)).json();
+    const options = filterOptions(snapshot);
+    const values = options.accounts.map((a) => a.value);
+    assert.ok(values.includes('CC'), `expected CC among dropdown options, got ${JSON.stringify(values)}`);
+    assert.ok(values.includes('default'), `expected default among dropdown options, got ${JSON.stringify(values)}`);
+  });
+});
+
+// Important 3: on a disk-full/EACCES failure writing imports.json, the
+// existing writeWithCompensation call restores the ledger but the accounts
+// write (which lands just before it, unconditionally when this is a new
+// accountId) is never compensated — 'CC' would permanently exist in
+// accounts.json with zero ledger rows behind it, selectable in the filter
+// and showing an empty app. Assert accounts.json is also rolled back.
+test('commit that fails writing the imports log also rolls back a freshly-appended accounts record', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'spendexplore-imp-flaky-accounts-'));
+  try {
+    const realStore = createStore(dir);
+    await realStore.init();
+
+    let importsWriteAttempts = 0;
+    const flakyStore = {
+      ...realStore,
+      write: async (name, data) => {
+        if (name === 'imports') {
+          importsWriteAttempts++;
+          throw new Error('simulated disk failure writing imports.json');
+        }
+        return realStore.write(name, data);
+      }
+    };
+
+    const server = createServer(createApp(flakyStore));
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const base = `http://127.0.0.1:${server.address().port}`;
+      const res = await post(base, '/api/import/commit', { files, accountId: 'CC' });
+      assert.equal(res.status, 500);
+      assert.equal(importsWriteAttempts, 1);
+
+      assert.deepEqual(await realStore.read('ledger'), []);
+      assert.deepEqual(
+        await realStore.read('accounts'), [],
+        'the CC account record must not survive a failed commit — it would be selectable with zero transactions behind it'
+      );
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

@@ -120,6 +120,27 @@ test('a merchant legitimately named "Open Air Cinema" is not damaged by the new 
   );
 });
 
+// --- Regression: "Open transaction details" is glued directly onto the
+// merchant with NO separator, unlike Direct Debit/Wdl/Dep/gateway prefixes
+// which always leave a space (or consumed noise) before the real first
+// token. Disabling the reference-code exemption for token 0 after this
+// strip is wrong: token 0 IS the genuine first content token here, and a
+// brand name that looks like a reference code (7ELEVEN, 13CABS — the exact
+// case this project already fixed once) must survive. These fixtures use
+// real-world uppercase-alphanumeric brand names (unlike the existing
+// title-case "Example Grocer" fixtures above, which can never match
+// REFERENCE_CODE_RE and so cannot catch this regression).
+test('the "Open transaction details" prefix does not disable the reference-code exemption for a leading brand name', () => {
+  assert.equal(
+    normaliseMerchant('Open transaction details7ELEVEN COBURG VIC'),
+    normaliseMerchant('7ELEVEN COBURG VIC')
+  );
+  assert.equal(
+    normaliseMerchant('Open transaction details13CABS MELBOURNE VIC'),
+    normaliseMerchant('13CABS MELBOURNE VIC')
+  );
+});
+
 // --- Fix wave: four defects found in the reference implementation, ratified
 // for fixing even though they touch the plan's own reference code. ---
 

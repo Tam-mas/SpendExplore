@@ -15,11 +15,12 @@ const COLLECTIONS = {
   ledger:     { file: 'ledger.json',     seed: () => [] },
   categories: { file: 'categories.json', seedFile: 'categories.json' },
   rules:      { file: 'rules.json',      seedFile: 'rules.json' },
-  // `accounts` is never written by any route today — every ingested
-  // transaction gets accountId: 'default' with no matching record — so the
-  // filter bar's Account and Person dropdowns are permanently empty/inert.
-  // Left as-is (a known gap, not a bug): building account management is a
-  // separate feature, not a fix.
+  // `accounts` is written by server/routes/import.js's handleCommit, which
+  // appends a record for every accountId newly present in the ledger (the
+  // one just committed, plus any pre-existing 'default' rows that never had
+  // one) so the filter bar's Account dropdown — built from this collection
+  // in web/filter-bar.js's filterOptions() — can offer every account, not
+  // just the most recently imported one.
   accounts:   { file: 'accounts.json',   seed: () => [] },
   // `views` (saved named views) is shipped in every GET /api/snapshot but
   // has no frontend consumer yet — noted future work ("Plan 3"), not dead

@@ -5,7 +5,7 @@ import { sendJson, readBody } from '../http.js';
 // The recognised date formats parseDate() understands. A mappingOverride
 // naming anything else would make every row in the file "unreadable" —
 // reject it up front with a 400 instead of letting that play out row by row.
-const KNOWN_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY'];
+const KNOWN_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD Mon YYYY'];
 
 // accountId is user-typed free text (the import preview's editable Account
 // field), not a fixed enum like a category id — cap its length the same way
@@ -84,26 +84,35 @@ const nextImportId = (filename, day) => {
 
 /**
  * Write `data` to `collection`. If that write throws, best-effort restore
- * `compensateCollection` to `compensateValue` so the two collections that
- * describe one commit/rollback don't end up disagreeing about whether it
- * happened, then rethrow the ORIGINAL error (never the compensating write's
- * own error) so the caller sees the real cause. If the compensating write
+ * every collection named in `compensations` ({ collection, value }) to its
+ * pre-commit value, so no collection that describes one commit/rollback is
+ * left disagreeing with the others about whether it happened, then rethrow
+ * the ORIGINAL error (never a compensating write's own error) so the caller
+ * sees the real cause. `compensations` is an array — not just the one
+ * collection this write's own caller happens to have touched — because a
+ * later write's failure can need MULTIPLE earlier writes unwound: the
+ * imports write in handleCommit runs after both the ledger AND (on a new
+ * account) the accounts write have already landed, so its failure has to
+ * restore both, not just the ledger, or a fresh accounts record survives
+ * on disk with zero transactions behind it. If any compensating write
  * itself fails, that's a second, distinct failure — logged on its own line
  * naming data/backups/ as the recovery path, so a restored partial failure
  * is never silently indistinguishable from one that stayed broken.
  */
-async function writeWithCompensation(store, collection, data, compensateCollection, compensateValue) {
+async function writeWithCompensation(store, collection, data, compensations) {
   try {
     await store.write(collection, data);
   } catch (err) {
-    try {
-      await store.write(compensateCollection, compensateValue);
-    } catch (compensationErr) {
-      console.error(
-        `Compensating write to '${compensateCollection}' also failed after '${collection}' write failed — ` +
-        `the two collections may now be inconsistent. Restore from data/backups/.`,
-        compensationErr
-      );
+    for (const { collection: compensateCollection, value: compensateValue } of compensations) {
+      try {
+        await store.write(compensateCollection, compensateValue);
+      } catch (compensationErr) {
+        console.error(
+          `Compensating write to '${compensateCollection}' also failed after '${collection}' write failed — ` +
+          `the two collections may now be inconsistent. Restore from data/backups/.`,
+          compensationErr
+        );
+      }
     }
     throw err;
   }
@@ -262,15 +271,28 @@ export function createImportRoutes(store, serialized) {
     // The Account filter dropdown is built from this collection (see
     // filterOptions() in web/filter-bar.js) — without a matching record here,
     // a transaction's accountId is just an opaque string nothing can ever
-    // show or filter by. Only append when missing: a second import to an
-    // account that already has a record must not produce a second one.
-    if (!accounts.some((a) => a.id === accountId)) {
-      const newAccounts = [...accounts, { id: accountId, label: accountId }];
+    // show or filter by. Union in every accountId already present in the
+    // ledger (not just the one being committed right now): a ledger that
+    // pre-dates this feature has ~2000 rows stamped 'default' with no
+    // matching accounts record, and a CC import must not be the only
+    // accountId that ever becomes selectable — the whole point of the
+    // feature is separating card spend FROM bank spend, which needs both
+    // sides in the dropdown. Only append ids missing a record: a second
+    // import to an account that already has one must not produce a second.
+    const knownAccountIds = new Set(accounts.map((a) => a.id));
+    const missingAccountIds = [...new Set([...ledger.map((t) => t.accountId), accountId])]
+      .filter((id) => !knownAccountIds.has(id));
+    const accountsChanged = missingAccountIds.length > 0;
+    const newAccounts = accountsChanged
+      ? [...accounts, ...missingAccountIds.map((id) => ({ id, label: id }))]
+      : accounts;
+    if (accountsChanged) {
       // If this write fails, the ledger write above already landed but
-      // nothing describes the account it landed on — compensate the ledger
-      // back to its pre-commit state rather than leave that half-applied,
-      // same reasoning as the ledger/imports compensation below.
-      await writeWithCompensation(store, 'accounts', newAccounts, 'ledger', ledger);
+      // nothing describes the account(s) it landed on — compensate the
+      // ledger back to its pre-commit state rather than leave that
+      // half-applied, same reasoning as the ledger/imports compensation
+      // below.
+      await writeWithCompensation(store, 'accounts', newAccounts, [{ collection: 'ledger', value: ledger }]);
     }
 
     const importsBefore = await store.read('imports');
@@ -290,7 +312,16 @@ export function createImportRoutes(store, serialized) {
       }))
     ];
 
-    await writeWithCompensation(store, 'imports', newImports, 'ledger', ledger);
+    // If this write fails, everything it comes after must be unwound: the
+    // ledger unconditionally (as before), and — new here — the accounts
+    // write too, whenever this commit was the one that appended a fresh
+    // record to it. Without this, a disk-full/EACCES failure here rolled
+    // the ledger back to its pre-commit ~2000 rows while leaving a newly
+    // created account permanently on disk with zero transactions behind
+    // it: selectable in the filter, rendering an empty app.
+    const compensations = [{ collection: 'ledger', value: ledger }];
+    if (accountsChanged) compensations.push({ collection: 'accounts', value: accounts });
+    await writeWithCompensation(store, 'imports', newImports, compensations);
 
     return sendJson(res, 200, {
       results: results.map((r) => ({
@@ -319,7 +350,7 @@ export function createImportRoutes(store, serialized) {
       const newImports = importsBefore.filter((i) => i.importId !== importId);
       if (removed > 0) {
         await store.write('ledger', kept);
-        await writeWithCompensation(store, 'imports', newImports, 'ledger', ledger);
+        await writeWithCompensation(store, 'imports', newImports, [{ collection: 'ledger', value: ledger }]);
       } else {
         // Nothing was written to the ledger, so there is nothing to
         // compensate if this write fails.
