@@ -69,6 +69,57 @@ test('extractCardSuffix returns null for an empty or whitespace-only string', ()
   assert.equal(extractCardSuffix('   '), null);
 });
 
+// --- Web-UI prefix stripping: "Open transaction details" fixture
+//
+// When a bank statement is exported from a web UI, some providers glue an
+// interface string onto the front of each merchant name with no separator.
+// Strip that prefix so the merchant normalises as if it were never there.
+
+test('strips web-UI "Open transaction details" prefix from the merchant', () => {
+  // Both inputs should normalize identically — the prefix should not affect
+  // the output. Assert the two inputs produce the same result rather than
+  // hard-coding an expected string.
+  assert.equal(
+    normaliseMerchant('Open transaction detailsExample Grocer Suburb'),
+    normaliseMerchant('Example Grocer Suburb')
+  );
+});
+
+test('strips "Open transaction details" when combined with other bank noise', () => {
+  // The new pattern should compose with existing STRIP_PATTERNS rather than
+  // fight them — both the prefix and existing noise should be removed together.
+  assert.equal(
+    normaliseMerchant('Open transaction detailsExample Pharmacy TOWN VIC'),
+    normaliseMerchant('Example Pharmacy TOWN VIC')
+  );
+});
+
+test('strips "Open transaction details" case-insensitively', () => {
+  // Case variation in the prefix should not prevent the strip.
+  assert.equal(
+    normaliseMerchant('open transaction detailsExample Grocer'),
+    normaliseMerchant('Example Grocer')
+  );
+});
+
+test('strips "Open transaction details" even with optional whitespace after the prefix', () => {
+  // Optional whitespace after the prefix should not prevent the strip.
+  assert.equal(
+    normaliseMerchant('Open transaction details Example Grocer'),
+    normaliseMerchant('Example Grocer')
+  );
+});
+
+test('a merchant legitimately named "Open Air Cinema" is not damaged by the new pattern', () => {
+  // Only the exact phrase "Open transaction details" should be stripped, not
+  // any merchant starting with the word "Open" — this is the key risk of the
+  // change. Verify explicitly that a plausible real merchant name is untouched.
+  assert.equal(
+    normaliseMerchant('Open Air Cinema Melbourne VI AUS Card xx4321'),
+    'Open Air Cinema'
+  );
+});
+
 // --- Fix wave: four defects found in the reference implementation, ratified
 // for fixing even though they touch the plan's own reference code. ---
 
