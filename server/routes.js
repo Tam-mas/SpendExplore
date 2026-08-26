@@ -3,6 +3,7 @@ import { createImportRoutes } from './routes/import.js';
 import { createTransactionRoutes } from './routes/transactions.js';
 import { createBudgetRoutes } from './routes/budgets.js';
 import { createRecurringRoutes } from './routes/recurring.js';
+import { createSettingsRoutes } from './routes/settings.js';
 import { createMutationGate } from './mutation-gate.js';
 
 /**
@@ -23,6 +24,7 @@ export function createRouter(store) {
   const transactionRoutes = createTransactionRoutes(store, gate);
   const budgetRoutes = createBudgetRoutes(store, gate);
   const recurringRoutes = createRecurringRoutes(store, gate);
+  const settingsRoutes = createSettingsRoutes(store, gate);
 
   return async function route(req, res, pathname) {
     if (req.method === 'GET' && pathname === '/api/snapshot') {
@@ -37,7 +39,7 @@ export function createRouter(store) {
     // Each route handler returns `false` synchronously when the request
     // isn't one of its routes, so a non-match falls through without ever
     // awaiting a Promise.
-    for (const handler of [importRoutes, transactionRoutes, budgetRoutes, recurringRoutes]) {
+    for (const handler of [importRoutes, transactionRoutes, budgetRoutes, recurringRoutes, settingsRoutes]) {
       const handled = handler(req, res, pathname);
       if (handled !== false) return await handled;
     }

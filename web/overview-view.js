@@ -78,6 +78,7 @@ import { renderDrilldown } from './drilldown-panel.js';
 import { patchTransaction, getSnapshot } from './api.js';
 import { guard } from './errors.js';
 import { recurringFor } from './recurring-view.js';
+import { THEME_CHANGE_EVENT } from './theme.js';
 import { applyFilters, buildContext } from '../lib/query/filter.js';
 
 const STORAGE_KEY = 'spendexplore.overview.panels';
@@ -260,6 +261,10 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
     ? globalThis.matchMedia('(prefers-color-scheme: dark)')
     : null;
   themeQuery?.addEventListener?.('change', draw);
+  // An explicit choice made in Settings doesn't change the OS setting, so it
+  // never fires the listener above — it needs its own event. Same guard
+  // reasoning: Node has no `window`.
+  globalThis.window?.addEventListener?.(THEME_CHANGE_EVENT, draw);
 
   function openDrilldown(config, key) {
     const doFetch = () => {

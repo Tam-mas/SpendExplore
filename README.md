@@ -282,6 +282,16 @@ Click a budgeted category's row to see that category's transactions for the curr
 
 ---
 
+## Settings
+
+Two things, so far, both existing data with no screen to reach them until now.
+
+**Appearance** — Light / Dark / Match system. The app already follows the OS via `prefers-color-scheme`; this is an explicit override for anyone who wants independence from it, stored locally and applied before the page paints so a reload never flashes the wrong theme.
+
+**Accounts** — rename an account, and name the person behind each card that has actually charged something on it. Card numbers aren't typed in by hand: each one you can name is pulled from your own transaction history, so there's nothing to mistype into a mapping that then matches nothing. Naming a card is what makes the **Person** filter and slice usable — until you do, everything attributes to `Joint`. The raw **Card** slice needs no mapping at all and works immediately, which is why it's there as a separate option from Person, not a replacement for this screen.
+
+---
+
 ## Architecture
 
 Four layers, three hard seams. Each layer talks only to its neighbour, so any one can be rewritten without touching the others.
@@ -372,6 +382,8 @@ All endpoints are on `127.0.0.1:5173`.
 | `PATCH` | `/api/transactions/:id` | Set `categoryId`, `excluded`, `note`; optional `applyToPast`, `rememberRule` |
 | `POST` | `/api/categories` | Create a category |
 | `POST` | `/api/budgets` | Add a budget entry (`categoryId`, `amount`) — always appended, `effectiveFrom` stamped server-side as the current month |
+| `POST` | `/api/recurring/override` | Mark a merchant `recurring`, `ignored`, or `auto` (clears the override) |
+| `PATCH` | `/api/accounts/:id` | Set `label` and/or `cardOwners` (a full replace, not a merge) |
 
 Preview and commit run the **same** ingest call with the same arguments — there is exactly one code path, so a preview can't disagree with what gets written.
 
@@ -398,17 +410,19 @@ server/                   the only code that touches the filesystem
   http.js  static.js      helpers, static serving
   store.js                atomic JSON storage, backups (Seam 3)
   mutation-gate.js        serialises writes
-  routes.js  routes/      HTTP endpoints (import, transactions, budgets)
+  routes.js  routes/      HTTP endpoints (import, transactions, budgets,
+                          recurring, settings)
 
 web/                      plain ES modules, no build step
-  index.html  style.css  app.js  api.js
+  index.html  style.css  app.js  api.js  theme.js
   import-view.js  overview-view.js  review-view.js  budgets-view.js
+  recurring-view.js  settings-view.js
   panel.js  filter-bar.js  drilldown-panel.js
   charts/                 palette.js, scale.js, seven renderers, registry
 
 data/                     your data (gitignored) + seed/ (committed)
 docs/superpowers/         design spec and implementation plans
-tests/                    510 tests
+tests/                    760 tests
 ```
 
 ---
@@ -430,10 +444,9 @@ Coverage is deliberately weighted toward the layers where a bug **silently corru
 
 Being honest about where this stops:
 
-- **Trends, Merchants, Recurring and Compare tabs**, including subscription detection with annualised costs.
+- **Trends and Merchants tabs.** (Recurring-charge detection and period comparison shipped since this list was first written — Recurring as its own tab, comparison as a filter-bar control rather than a separate tab.)
 - **Saved named views** and adding/removing/reordering panels.
 - **Per-person or group-level budgets**, scheduling a budget change for a future month, or deleting a budget entirely (set it to $0 to pause one).
-- **Settings UI** for the card → person mapping and account management. The data model supports per-person attribution via card suffix; there's just no screen to configure it yet.
 
 ---
 
@@ -444,7 +457,7 @@ The full design rationale and the implementation plans are in `docs/superpowers/
 - `specs/` — the design spec, including the decisions and the trade-offs behind them
 - `plans/` — task-by-task implementation plans
 
-**Dark mode** follows the OS via `prefers-color-scheme` — there is no in-app toggle. An earlier pass claimed this had been visually reviewed end to end; it hadn't been, in the way that mattered — every chart was silently rendering hard-coded light-mode colours regardless of OS theme (`colourResolver()`/the chart `options` object never received a resolved mode), so the whole dark categorical palette, including the `money` fix that pass claimed, was dead code no browser had ever painted. That is now fixed: chart colour resolution runs through `resolveMode()` (`web/charts/palette.js`), which reads `prefers-color-scheme` via `matchMedia` and re-renders the Overview's charts live on an OS theme change; it degrades to `'light'` under Node, where `matchMedia` doesn't exist.
+**Dark mode** follows the OS via `prefers-color-scheme` by default, with an explicit Light/Dark/System override in **Settings** for anyone who wants independence from the OS setting — the choice is stored in `localStorage`, stamped onto `<html data-theme>`, and applied before first paint so a reload never flashes the wrong theme. An earlier pass claimed this had been visually reviewed end to end; it hadn't been, in the way that mattered — every chart was silently rendering hard-coded light-mode colours regardless of OS theme (`colourResolver()`/the chart `options` object never received a resolved mode), so the whole dark categorical palette, including the `money` fix that pass claimed, was dead code no browser had ever painted. That is now fixed: chart colour resolution runs through `resolveMode()` (`web/charts/palette.js`), which reads `prefers-color-scheme` via `matchMedia` and re-renders the Overview's charts live on an OS theme change; it degrades to `'light'` under Node, where `matchMedia` doesn't exist.
 
 With dark colours actually reaching the screen for the first time, a real review found one further defect this pass fixes: the bar chart's dashed "ghost" baseline (shown when a comparison is active) sits behind the solid bar at `.55` opacity, a value tuned against the light palette — against the dark surface, six of the app's seven group colours measured under the 3:1 contrast floor for a graphical mark (as low as ~2.1:1; only `money`, already corrected for its own reasons, cleared it). Fixed by raising the ghost's opacity to `.8` in dark mode only — verified by the same relative-luminance blend-over-surface math as the `money` fix (worst case ~3.1:1), not a colour or hue change, so the categorical hue separation the palette depends on is untouched. Confirmed live (`npm run start:test`) for bar, donut, treemap, dots, stacked and line charts, the ghost baseline, and the KPI/drill-down/budget/recurring surfaces named by the previous (invalid) review — no further dark-mode defects found once colours were actually rendering.
 

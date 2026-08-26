@@ -30,3 +30,10 @@ export const postBudget      = (target, amount) => postJson('/api/budgets', { ..
 
 export const postRecurringOverride = (merchant, decision) =>
   postJson('/api/recurring/override', { merchant, decision });
+
+export const patchAccount = (id, payload) =>
+  request(`/api/accounts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });

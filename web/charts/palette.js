@@ -32,6 +32,8 @@
  * .55 opacity.
  */
 
+import { getThemePreference } from '../theme.js';
+
 /** The 7 taxonomy groups map 1:1 onto the 7 categorical slots, in this order. */
 export const GROUP_SLOTS = Object.freeze({
   'food-drink': { light: '#2a78d6', dark: '#3987e5' },
@@ -136,7 +138,15 @@ export function mixToward(hex, target, amount) {
  * — Node has no `matchMedia` at all, and `web/panel.js` (which calls this)
  * is imported directly by tests/overview-panels.test.js and tests/panel.test.js.
  */
-export function resolveMode(matchMediaFn = globalThis.matchMedia) {
+/**
+ * An explicit theme choice (Settings) always wins over the OS setting. Both
+ * arguments are injectable so this stays testable with no fake localStorage
+ * or DOM — real callers (web/panel.js) pass neither and get the live values.
+ */
+export function resolveMode(matchMediaFn = globalThis.matchMedia, readPreference = getThemePreference) {
+  const preference = readPreference();
+  if (preference === 'dark' || preference === 'light') return preference;
+
   if (typeof matchMediaFn !== 'function') return 'light';
   try {
     return matchMediaFn('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

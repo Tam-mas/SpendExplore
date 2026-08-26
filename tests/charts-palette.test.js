@@ -98,6 +98,23 @@ test('resolveMode defaults to light rather than throwing if the matcher itself t
   assert.equal(resolveMode(() => { throw new Error('no'); }), 'light');
 });
 
+test('resolveMode lets an explicit theme preference override the OS matcher entirely', () => {
+  // The second argument is the injectable preference reader — Settings' theme
+  // toggle is what supplies a real one; tests supply a stub so this needs no
+  // fake localStorage or DOM to prove the override wins.
+  assert.equal(resolveMode(() => ({ matches: false }), () => 'dark'), 'dark');
+  assert.equal(resolveMode(() => ({ matches: true }), () => 'light'), 'light');
+});
+
+test('resolveMode falls through to the OS matcher when the preference is "system"', () => {
+  assert.equal(resolveMode(() => ({ matches: true }), () => 'system'), 'dark');
+  assert.equal(resolveMode(() => ({ matches: false }), () => 'system'), 'light');
+});
+
+test('resolveMode with no arguments reads the real (Node-absent) preference and matcher, both defaulting to light', () => {
+  assert.equal(resolveMode(), 'light');
+});
+
 test('every exported hex is a full six-digit hex string', () => {
   const hexes = [
     ...Object.values(GROUP_SLOTS).flatMap((s) => [s.light, s.dark]),

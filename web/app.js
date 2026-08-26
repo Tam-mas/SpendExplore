@@ -4,6 +4,7 @@ import { mountOverview } from './overview-view.js';
 import { mountReview } from './review-view.js';
 import { mountBudgets } from './budgets-view.js';
 import { mountRecurring } from './recurring-view.js';
+import { mountSettings } from './settings-view.js';
 import { guard } from './errors.js';
 
 const views = {
@@ -11,7 +12,8 @@ const views = {
   import: document.querySelector('#view-import'),
   review: document.querySelector('#view-review'),
   budgets: document.querySelector('#view-budgets'),
-  recurring: document.querySelector('#view-recurring')
+  recurring: document.querySelector('#view-recurring'),
+  settings: document.querySelector('#view-settings')
 };
 const drilldownRoot = document.querySelector('#drilldown');
 const budgetsDrilldownRoot = document.querySelector('#budgets-drilldown');
@@ -21,6 +23,7 @@ let overview = null;
 let review = null;
 let budgets = null;
 let recurring = null;
+let settings = null;
 // Guards against two refresh() calls running concurrently — each drives an
 // independent chain of per-view getSnapshot() calls, and without this, two
 // overlapping calls could resolve out of order with no guarantee the more
@@ -40,6 +43,8 @@ async function refresh() {
     else budgets = mountBudgets(views.budgets, { snapshot, drilldownRoot: budgetsDrilldownRoot });
     if (recurring) await recurring.refresh();
     else recurring = mountRecurring(views.recurring, { snapshot, drilldownRoot: recurringDrilldownRoot });
+    if (settings) await settings.refresh();
+    else settings = mountSettings(views.settings, { snapshot });
   } finally {
     refreshing = false;
   }
