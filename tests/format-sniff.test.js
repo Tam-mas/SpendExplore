@@ -158,3 +158,68 @@ test('parseAmount rejects European decimal-comma and space-grouped forms instead
   assert.equal(parseAmount('1 404,01'), null);
   assert.equal(parseAmount('$1,404.01'), 1404.01);
 });
+
+// --- DD Mon YYYY format support ---
+
+test('parseDate converts DD Mon YYYY to ISO', () => {
+  assert.equal(parseDate('18 Aug 2026', 'DD Mon YYYY'), '2026-08-18');
+});
+
+test('parseDate handles single-digit days in DD Mon YYYY format', () => {
+  assert.equal(parseDate('5 Aug 2026', 'DD Mon YYYY'), '2026-08-05');
+});
+
+test('parseDate handles all twelve month abbreviations', () => {
+  assert.equal(parseDate('1 Jan 2026', 'DD Mon YYYY'), '2026-01-01');
+  assert.equal(parseDate('1 Feb 2026', 'DD Mon YYYY'), '2026-02-01');
+  assert.equal(parseDate('1 Mar 2026', 'DD Mon YYYY'), '2026-03-01');
+  assert.equal(parseDate('1 Apr 2026', 'DD Mon YYYY'), '2026-04-01');
+  assert.equal(parseDate('1 May 2026', 'DD Mon YYYY'), '2026-05-01');
+  assert.equal(parseDate('1 Jun 2026', 'DD Mon YYYY'), '2026-06-01');
+  assert.equal(parseDate('1 Jul 2026', 'DD Mon YYYY'), '2026-07-01');
+  assert.equal(parseDate('1 Aug 2026', 'DD Mon YYYY'), '2026-08-01');
+  assert.equal(parseDate('1 Sep 2026', 'DD Mon YYYY'), '2026-09-01');
+  assert.equal(parseDate('1 Oct 2026', 'DD Mon YYYY'), '2026-10-01');
+  assert.equal(parseDate('1 Nov 2026', 'DD Mon YYYY'), '2026-11-01');
+  assert.equal(parseDate('1 Dec 2026', 'DD Mon YYYY'), '2026-12-01');
+});
+
+test('parseDate handles case-insensitive month matching in DD Mon YYYY format', () => {
+  assert.equal(parseDate('18 aug 2026', 'DD Mon YYYY'), '2026-08-18');
+  assert.equal(parseDate('18 AUG 2026', 'DD Mon YYYY'), '2026-08-18');
+  assert.equal(parseDate('18 AuG 2026', 'DD Mon YYYY'), '2026-08-18');
+});
+
+test('parseDate rejects invalid month names in DD Mon YYYY format', () => {
+  assert.equal(parseDate('18 Xyz 2026', 'DD Mon YYYY'), null);
+  assert.equal(parseDate('18 Foo 2026', 'DD Mon YYYY'), null);
+});
+
+test('parseDate rejects impossible dates in DD Mon YYYY format', () => {
+  assert.equal(parseDate('30 Feb 2026', 'DD Mon YYYY'), null);
+  assert.equal(parseDate('32 Aug 2026', 'DD Mon YYYY'), null);
+  assert.equal(parseDate('0 Aug 2026', 'DD Mon YYYY'), null);
+});
+
+test('looksLikeDate recognizes DD Mon YYYY format indirectly via column detection', () => {
+  const rows = parseCsv([
+    'Date,Amount',
+    '18 Aug 2026,"-10.00"'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.mapping.date, 0);
+  assert.equal(f.hasHeader, true);
+});
+
+test('detects DD Mon YYYY format in a CSV', () => {
+  const rows = parseCsv([
+    '18 Aug 2026,"COLES","-10.00"',
+    '5 Aug 2026,"ALDI","-64.15"',
+    '2 Aug 2026,"MYKI","-7.35"'
+  ].join('\n'));
+  const f = sniffFormat(rows);
+  assert.equal(f.dateFormat, 'DD Mon YYYY');
+  assert.equal(f.dateFormatConfidence, 'high');
+  assert.equal(f.mapping.date, 0);
+  assert.equal(f.mapping.amount, 2);
+});
