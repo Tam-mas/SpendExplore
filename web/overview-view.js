@@ -185,7 +185,7 @@ function kpiRow(snapshot, globalFilters, compareMode = 'off', today) {
  * as selected. It is converted to query shape once, here, so panels and KPIs
  * both see the same thing.
  */
-export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '', compareMode = 'off', today) {
+export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_PANELS, extraFilters = {}, hiddenCount = 0, searchQuery = '', compareMode = 'off', today, filterOpen = true) {
   if (!(snapshot.transactions ?? []).length) {
     return '<p class="empty">No transactions yet — import a CSV to get started.</p>';
   }
@@ -201,7 +201,7 @@ export function renderOverview(snapshot, uiFilters = {}, panelConfigs = DEFAULT_
     ${kpiRow(snapshot, queryFilters, compareMode, today)}
     ${hiddenBanner}
     ${searchBox(searchQuery)}
-    ${renderFilterBar(snapshot, uiFilters, compareMode)}
+    ${renderFilterBar(snapshot, uiFilters, compareMode, filterOpen)}
     ${panels}`;
 }
 
@@ -240,9 +240,26 @@ export function mountOverview(root, { snapshot, drilldownRoot } = {}) {
   };
 
   const draw = () => {
-    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size, searchQuery, compareMode);
+    // The filter <details> re-renders from scratch every draw() (root.innerHTML
+    // is replaced wholesale), so its open/closed state would otherwise reset to
+    // the literal `open` attribute renderFilterBar() always emits — collapsing
+    // it on a phone, then changing any filter, would silently re-expand it.
+    // Reading the live element's own `.open` here and threading it back in is
+    // cheaper than a second localStorage-backed preference for a state that
+    // only ever needs to survive this same draw cycle.
+    const filterOpen = root.querySelector('.viz-filter-bar-wrap')?.open ?? true;
+    root.innerHTML = renderOverview(current, filters, configs, extraFilters(), excludedIds.size, searchQuery, compareMode, undefined, filterOpen);
     drawDrilldown();
   };
+
+  // Charts bake their colours into the SVG markup at render time, so an OS
+  // theme flip while the app is open needs an explicit re-render — nothing
+  // else observes prefers-color-scheme. Guarded because Node (which imports
+  // this module in tests/overview-panels.test.js) has no matchMedia at all.
+  const themeQuery = typeof globalThis.matchMedia === 'function'
+    ? globalThis.matchMedia('(prefers-color-scheme: dark)')
+    : null;
+  themeQuery?.addEventListener?.('change', draw);
 
   function openDrilldown(config, key) {
     const doFetch = () => {

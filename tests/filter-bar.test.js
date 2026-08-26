@@ -100,6 +100,16 @@ test('the comparison control defaults to off when given an unknown mode', () => 
   assert.match(html, /value="off" selected/);
 });
 
+test('renderFilterBar opens the details by default', () => {
+  assert.match(renderFilterBar(SNAPSHOT, {}), /<details class="viz-filter-bar-wrap" open>/);
+});
+
+test('renderFilterBar omits the open attribute when told the panel is collapsed', () => {
+  const html = renderFilterBar(SNAPSHOT, {}, 'off', false);
+  assert.match(html, /<details class="viz-filter-bar-wrap">/);
+  assert.doesNotMatch(html, /<details class="viz-filter-bar-wrap" open>/);
+});
+
 test('toQueryFilters never leaks the comparison mode into a query spec', () => {
   const spec = toQueryFilters({ month: '2026-08', compare: 'trailing3' });
   assert.equal(spec.compare, undefined);

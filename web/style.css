@@ -69,7 +69,7 @@ main { padding: var(--space-5); max-width: 1400px; margin: 0 auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num, th.num { text-align: right; }
 .bar { height: 8px; background: var(--bar); border-radius: 4px; }
 .kpis { display: flex; gap: var(--space-3); margin-bottom: var(--space-5); flex-wrap: wrap; }
 .warn { color: var(--warn); }
@@ -159,7 +159,7 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 .viz-donut { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
 .viz-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .viz-table th, .viz-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
-.viz-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.viz-table .num { text-align: right; }
 .viz-caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
 .viz-filter-bar { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .viz-search { margin: 4px 0 16px; }
@@ -176,6 +176,16 @@ button.primary[disabled] { opacity: .5; cursor: default; }
 /* Baseline marks are decoration behind the real value — they must never
    intercept the click that opens the drill-down panel. */
 .viz-ghost, .viz-ghost-line { pointer-events: none; opacity: .55; }
+/* .55 was tuned against the LIGHT categorical hues. Once dark mode actually
+   rendered (Critical 1 fix), six of the seven groups' ghost strokes measured
+   under 3:1 against --viz-surface dark at that opacity — money was the only
+   one anyone had checked. Raising opacity, not hue lightness, clears the
+   floor for all seven (worst case ~3.1:1) without touching the hue
+   separation the categorical palette depends on. Verified by the same
+   relative-luminance blend-over-surface math as the money fix.  */
+@media (prefers-color-scheme: dark) {
+  .viz-ghost, .viz-ghost-line { opacity: .8; }
+}
 
 .review { max-width: 640px; }
 .review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -242,7 +252,7 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
 .budget-status-on-track { color: var(--viz-text-secondary); }
 .budget-status-covered { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .budget-status-over { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); font-weight: 600; }
-.budgets-table input[type="number"] { width: 100px; font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.budgets-table input[type="number"] { width: 100px; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); }
 .budgets-table button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 12px; }
 .budgets-table tbody tr[data-budget-category] { cursor: pointer; }
 .budgets-table tbody tr[data-budget-category]:hover { background: var(--line); }
@@ -280,6 +290,14 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
   .viz-panel { padding: var(--space-3); }
   .viz-panel-head { flex-direction: column; align-items: stretch; gap: var(--space-2); }
 
+  /* Bar/treemap/dots charts render width="100%" against a 600-unit viewBox,
+     so at phone widths they scale down to ~0.55x and their direct labels —
+     the mandated relief for the palette's sub-3:1 hues — become illegible.
+     Line and stacked already avoid this by setting an explicit px width; this
+     forces the same floor on the rest so .viz-plot's overflow-x:auto (already
+     set above) actually engages instead of the SVG shrinking to fit. */
+  .viz-plot > svg[class] { min-width: 600px; }
+
   /* A 420px side panel on a 375px screen is a side panel in name only —
      a bottom sheet is the honest form factor. */
   .drilldown {
@@ -294,12 +312,6 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
 /* Motion earns its place by showing WHICH bar moved when a filter changes —
    not by announcing that the page loaded. */
 @media (prefers-reduced-motion: no-preference) {
-  .viz-bar rect,
-  .viz-stacked rect {
-    transition: width 220ms cubic-bezier(.2, .7, .3, 1),
-                height 220ms cubic-bezier(.2, .7, .3, 1),
-                y 220ms cubic-bezier(.2, .7, .3, 1);
-  }
   .viz-panel, .kpi, .card { transition: border-color 160ms ease, background-color 160ms ease; }
   nav button { transition: background-color 120ms ease, color 120ms ease; }
   .drilldown { animation: drilldown-in 180ms cubic-bezier(.2, .7, .3, 1); }
@@ -310,8 +322,12 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
   to   { transform: none; opacity: 1; }
 }
 
-:where(a, button, select, summary, input, [tabindex]):focus-visible {
+/* :where() carries zero specificity by design, so this rule sits at (0,1,0)
+   — no border-radius here, or it would tie-and-beat components with their own
+   radius (.review-nav, .review-key, etc.) declared earlier in the cascade,
+   snapping their corners tighter on focus. The outline follows the focused
+   element's own radius without needing to restate it. */
+:where(a, button, select, summary, input, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }

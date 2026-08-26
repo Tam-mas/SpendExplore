@@ -3,7 +3,7 @@ import { applyFilters, buildContext } from '../lib/query/filter.js';
 import { SLICES, groupBy } from '../lib/query/group-by.js';
 import { MEASURES } from '../lib/query/measures.js';
 import { chartsFor, renderChart, defaultChartFor } from './charts/index.js';
-import { colourForGroup, colourForCategory, GROUP_SLOTS } from './charts/palette.js';
+import { colourForGroup, colourForCategory, GROUP_SLOTS, resolveMode } from './charts/palette.js';
 import { escapeHtml, concentrationLine } from './charts/scale.js';
 
 const SLICE_LABELS = {
@@ -110,9 +110,10 @@ export function createPanel(initial = {}) {
       // compareQuery with mode 'off' runs query() exactly once and returns the
       // same rows with null baseline fields — one code path, no branch here.
       const result = compareQuery(snapshot, spec, compareMode);
-      const colourFor = colourResolver(snapshot, config.sliceBy);
+      const mode = resolveMode();
+      const colourFor = colourResolver(snapshot, config.sliceBy, mode);
 
-      const options = { mode: 'light', colourFor, title: config.title };
+      const options = { mode, colourFor, title: config.title };
       if (config.chartType === 'dots') {
         // The only chart needing raw amounts. They are derived through the SAME
         // filters as the rest of the panel, then reduced to bare {amount, key,
@@ -122,7 +123,7 @@ export function createPanel(initial = {}) {
         const ctx = buildContext(snapshot);
         options.points = applyFilters(snapshot.transactions ?? [], spec.filters, ctx)
           .map((t) => ({ amount: t.amount, key: t.categoryId, label: t.merchant }));
-        options.colourFor = colourResolver(snapshot, 'category');
+        options.colourFor = colourResolver(snapshot, 'category', mode);
       }
       if (config.chartType === 'stacked') {
         // Stacked needs a SECOND dimension the slice-by-month/week query
@@ -151,7 +152,7 @@ export function createPanel(initial = {}) {
             bucket.rows.filter((t) => (groupOf.get(t.categoryId) ?? 'other') === groupId)
               .reduce((a, t) => a + t.amount, 0))
         }));
-        options.colourFor = colourResolver(snapshot, 'group');
+        options.colourFor = colourResolver(snapshot, 'group', mode);
       }
 
       const chart = renderChart(config.chartType, result, options);

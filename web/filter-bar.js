@@ -58,8 +58,14 @@ const select = (name, label, options, current, allLabel) => `
  * `compareMode` is the one control here that is NOT a filter — it selects a
  * baseline rather than narrowing the data, so it is passed separately and
  * deliberately never reaches toQueryFilters().
+ *
+ * `filterOpen` controls the <details> open state. It is only ever visually
+ * distinct on a phone — the summary toggle is hidden above that breakpoint
+ * (see .viz-filter-summary in style.css) — but the caller is the one that
+ * knows the live element's current state, so the default here only covers
+ * the very first render.
  */
-export function renderFilterBar(snapshot, filters = {}, compareMode = 'off') {
+export function renderFilterBar(snapshot, filters = {}, compareMode = 'off', filterOpen = true) {
   const options = filterOptions(snapshot);
   const mode = BASELINE_MODES.includes(compareMode) ? compareMode : 'off';
   const compareOptions = BASELINE_MODES
@@ -67,7 +73,7 @@ export function renderFilterBar(snapshot, filters = {}, compareMode = 'off') {
     .map((m) => ({ value: m, label: BASELINE_LABELS[m] }));
 
   return `
-  <details class="viz-filter-bar-wrap" open>
+  <details class="viz-filter-bar-wrap"${filterOpen ? ' open' : ''}>
     <summary class="viz-filter-summary">Filters</summary>
     <div class="viz-filter-bar">
       ${select('month', 'Period', options.months, filters.month ?? '', 'All time')}

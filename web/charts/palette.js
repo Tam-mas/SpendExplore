@@ -53,7 +53,13 @@ export const SEQUENTIAL_BLUE = Object.freeze([
   { step: 700, hex: '#0d366b' }
 ]);
 
-export const SURFACES = Object.freeze({ light: '#fcfcfb', dark: '#1a1a19' });
+// Must track --viz-surface in style.css (currently var(--surface-raised)),
+// since colourForCategory mixes within-group tints toward these values and
+// the palette's contrast figures assume the tints land on the real surface.
+// The branch that repointed --viz-surface at --surface-raised (#fcfcfb→#ffffff
+// light, #1a1a19→#1d2025 dark) left this constant unchanged — exactly the
+// undetected drift this comment warns about below.
+export const SURFACES = Object.freeze({ light: '#ffffff', dark: '#1d2025' });
 
 export const TEXT = Object.freeze({
   light: { primary: '#0b0b0b', secondary: '#52514e' },
@@ -122,6 +128,23 @@ export function mixToward(hex, target, amount) {
  * load time) if that drift ever needs fixing. Not fixed here — out of scope
  * for this pass.
  */
+/**
+ * The chart mode ('light'/'dark') to render in, resolved from the OS theme.
+ *
+ * Takes the matcher as a parameter, defaulting to `globalThis.matchMedia`,
+ * so it is testable with a fake matcher and never throws under `node --test`
+ * — Node has no `matchMedia` at all, and `web/panel.js` (which calls this)
+ * is imported directly by tests/overview-panels.test.js and tests/panel.test.js.
+ */
+export function resolveMode(matchMediaFn = globalThis.matchMedia) {
+  if (typeof matchMediaFn !== 'function') return 'light';
+  try {
+    return matchMediaFn('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 export function cssVariables(mode = 'light') {
   const lines = [
     `--viz-surface: ${SURFACES[mode]};`,

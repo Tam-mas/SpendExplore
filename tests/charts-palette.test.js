@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   GROUP_SLOTS, SEQUENTIAL_BLUE, SURFACES, TEXT, DIVERGING,
-  colourForGroup, colourForCategory, sequentialColour, cssVariables
+  colourForGroup, colourForCategory, sequentialColour, cssVariables, resolveMode
 } from '../web/charts/palette.js';
 
 test('the seven groups carry the validated categorical slots in order', () => {
@@ -68,8 +68,10 @@ test('a category keeps its colour when siblings are filtered out', () => {
 });
 
 test('surfaces, text and diverging tokens are present for both modes', () => {
-  assert.equal(SURFACES.light, '#fcfcfb');
-  assert.equal(SURFACES.dark, '#1a1a19');
+  // Matches --viz-surface in style.css (var(--surface-raised)), not the
+  // stale values this constant drifted to — see the comment on SURFACES.
+  assert.equal(SURFACES.light, '#ffffff');
+  assert.equal(SURFACES.dark, '#1d2025');
   assert.equal(TEXT.light.primary, '#0b0b0b');
   assert.equal(TEXT.dark.primary, '#ffffff');
   assert.equal(DIVERGING.light.mid, '#f0efec');
@@ -78,9 +80,22 @@ test('surfaces, text and diverging tokens are present for both modes', () => {
 
 test('cssVariables emits a declaration block for each mode', () => {
   const light = cssVariables('light');
-  assert.match(light, /--viz-surface:\s*#fcfcfb/);
+  assert.match(light, /--viz-surface:\s*#ffffff/);
   assert.match(light, /--viz-group-food-drink:\s*#2a78d6/);
-  assert.match(cssVariables('dark'), /--viz-surface:\s*#1a1a19/);
+  assert.match(cssVariables('dark'), /--viz-surface:\s*#1d2025/);
+});
+
+test('resolveMode reads dark from a matchMedia-shaped matcher', () => {
+  assert.equal(resolveMode(() => ({ matches: true })), 'dark');
+  assert.equal(resolveMode(() => ({ matches: false })), 'light');
+});
+
+test('resolveMode defaults to light when no matcher is available (Node has no matchMedia)', () => {
+  assert.equal(resolveMode(undefined), 'light');
+});
+
+test('resolveMode defaults to light rather than throwing if the matcher itself throws', () => {
+  assert.equal(resolveMode(() => { throw new Error('no'); }), 'light');
 });
 
 test('every exported hex is a full six-digit hex string', () => {

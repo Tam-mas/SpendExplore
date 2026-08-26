@@ -25,10 +25,41 @@ test('a monospace figure stack is defined and used for numbers', () => {
   assert.match(css, /font-variant-numeric:\s*tabular-nums/);
 });
 
+/**
+ * Extract the body of every `@media (prefers-color-scheme: dark) { ... }`
+ * block by brace-matching, rather than slicing from the first match to EOF.
+ *
+ * Slicing to EOF was the bug: it swept the LIGHT chart `:root` block (which
+ * sits further down style.css, after the first dark block) into what the
+ * test treated as "dark," so a token missing from the real dark block could
+ * still pass by matching its own light-mode declaration. Verified by
+ * mutation — see the report for the delete/confirm-fail/restore steps.
+ */
+function extractDarkBlocks(source) {
+  const blocks = [];
+  const marker = '@media (prefers-color-scheme: dark)';
+  let searchFrom = 0;
+  for (;;) {
+    const markerIndex = source.indexOf(marker, searchFrom);
+    if (markerIndex === -1) break;
+    const openBrace = source.indexOf('{', markerIndex);
+    let depth = 1;
+    let i = openBrace + 1;
+    while (depth > 0 && i < source.length) {
+      if (source[i] === '{') depth++;
+      else if (source[i] === '}') depth--;
+      i++;
+    }
+    blocks.push(source.slice(openBrace + 1, i - 1));
+    searchFrom = i;
+  }
+  return blocks;
+}
+
 test('every colour token defined in light mode is redefined in dark mode', () => {
-  const darkBlock = css.slice(css.indexOf('prefers-color-scheme: dark'));
+  const darkContent = extractDarkBlocks(css).join('\n');
   const colourTokens = [...css.matchAll(/(--(?:bg|fg|muted|line|accent|warn|bar|surface-raised|viz-[a-z-]+))\s*:/g)]
     .map((m) => m[1]);
-  const missing = [...new Set(colourTokens)].filter((token) => !darkBlock.includes(`${token}:`));
+  const missing = [...new Set(colourTokens)].filter((token) => !darkContent.includes(`${token}:`));
   assert.deepEqual(missing, [], `colour tokens with no dark-mode definition: ${missing.join(', ')}`);
 });
