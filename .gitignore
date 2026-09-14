@@ -19,6 +19,7 @@ data-test/
 
 # Agent scratch
 .superpowers/
+.playwright-mcp/
 
 .DS_Store
 *.log

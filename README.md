@@ -41,6 +41,34 @@ npm test
 
 ---
 
+## Screenshots
+
+**Overview** — a KPI row, a global filter bar, and three configurable panels answering "where did it go, and is that a few big spends or a lot of small ones?"
+
+![Overview](docs/screenshots/overview.png)
+
+**Import** — drop a CSV, see the detected format and totals before anything is written to disk.
+
+![Import preview](docs/screenshots/import.png)
+
+**Review** — uncategorised transactions grouped by merchant, one keyboard-driven decision at a time.
+
+![Review queue](docs/screenshots/review.png)
+
+**Budgets** — envelope budgeting: unspent allocation carries forward, so one big month doesn't read as "over" when the year is fine.
+
+![Budgets](docs/screenshots/budgets.png)
+
+**Recurring** — detected subscriptions and bills, with a search box to tag anything the detector was too conservative to catch on its own.
+
+![Recurring](docs/screenshots/recurring.png)
+
+**Settings** — name the person behind each card, and override the OS theme.
+
+![Settings](docs/screenshots/settings.png)
+
+---
+
 ## The monthly ritual
 
 1. **Export CSVs** from your bank for the period you care about. Multiple accounts is fine — drop them all in at once.
