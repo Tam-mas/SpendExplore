@@ -12,7 +12,7 @@ const assignableCategories = (snapshot) =>
  */
 export function renderDrilldown(snapshot, state) {
   if (!state) return '';
-  const { label, rows = [], excludedIds = new Set(), hideable = true } = state;
+  const { label, rows = [], excludedIds = new Set(), hideable = true, markRecurring = false } = state;
   const categories = assignableCategories(snapshot);
 
   const options = (currentId) => categories
@@ -31,6 +31,12 @@ export function renderDrilldown(snapshot, state) {
           </label>
         </td>`
       : '';
+    // Search results feed this from any transaction, so the "mark recurring"
+    // action targets the ROW's merchant, not a merchant already known to be
+    // a recurring series (unlike the Recurring tab's own click-to-drilldown).
+    const markRecurringCell = markRecurring
+      ? `<td><button data-drilldown-action="mark-recurring" data-drilldown-merchant="${escapeHtml(t.merchant)}">Mark recurring</button></td>`
+      : '';
     return `
     <tr class="${hidden ? 'drilldown-hidden-row' : ''}" data-drilldown-id="${escapeHtml(t.id)}">
       <td>${escapeHtml(t.date)}</td>
@@ -38,6 +44,7 @@ export function renderDrilldown(snapshot, state) {
       <td class="num">${formatMoney(t.amount)}</td>
       <td><select data-drilldown-action="recategorise">${options(t.categoryId)}</select></td>
       ${hideCell}
+      ${markRecurringCell}
     </tr>`;
   }).join('');
 
@@ -52,6 +59,7 @@ export function renderDrilldown(snapshot, state) {
   const hideHeader = hideable
     ? `<th><label class="drilldown-hide"><input type="checkbox" data-drilldown-action="toggle-hide-all" ${allHidden ? 'checked' : ''}> All</label></th>`
     : '';
+  const markRecurringHeader = markRecurring ? '<th></th>' : '';
 
   return `
   <div class="drilldown-panel">
@@ -63,7 +71,7 @@ export function renderDrilldown(snapshot, state) {
     ${hideNote}
     <div class="table-scroll">
     <table class="viz-table drilldown-table">
-      <thead><tr><th>Date</th><th>Merchant</th><th class="num">Amount</th><th>Category</th>${hideHeader}</tr></thead>
+      <thead><tr><th>Date</th><th>Merchant</th><th class="num">Amount</th><th>Category</th>${hideHeader}${markRecurringHeader}</tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
     </div>

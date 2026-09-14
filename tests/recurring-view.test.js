@@ -115,3 +115,43 @@ test('every row carries the merchant key needed to drill down and to override', 
   assert.match(html, /data-recurring-merchant="Netflix"/);
   assert.match(html, /data-recurring-action="ignore"/);
 });
+
+test('each row shows how many times it has been paid and the date of the last payment', () => {
+  const html = renderRecurring(snapshotOf(
+    series('Netflix', -16.99, ['2026-05', '2026-06', '2026-07', '2026-08'])
+  ), TODAY);
+  assert.match(html, /TIMES PAID|Times paid/i);
+  assert.match(html, /Last paid/i);
+  assert.match(html, />4</); // four occurrences
+  assert.match(html, />2026-08-15</); // most recent charge date
+});
+
+test('always offers a search box, even on an empty ledger, so a first recurring charge can be tagged by hand', () => {
+  const empty = renderRecurring(snapshotOf([]), TODAY);
+  assert.match(empty, /data-recurring-search/);
+
+  const withData = renderRecurring(snapshotOf(series('Netflix', -16.99, ['2026-06', '2026-07', '2026-08'])), TODAY);
+  assert.match(withData, /data-recurring-search/);
+});
+
+test('a forced series with no reliable next-expected date shows a dash, never the literal "null"', () => {
+  const html = renderRecurring(snapshotOf(
+    [
+      t({ id: 'a', merchant: 'Arctel', date: '2026-06-17', amount: -59.99 }),
+      t({ id: 'b', merchant: 'Arctel', date: '2026-07-08', amount: -56.12 }),
+      t({ id: 'c', merchant: 'Arctel', date: '2026-08-06', amount: -59.99 })
+    ],
+    [{ merchant: 'Arctel', decision: 'recurring' }]
+  ), TODAY);
+  assert.match(html, /Arctel/);
+  assert.doesNotMatch(html, />null</);
+});
+
+test('the search box echoes back the current query, escaped', () => {
+  const html = renderRecurring(
+    snapshotOf(series('Netflix', -16.99, ['2026-06', '2026-07', '2026-08'])),
+    { ...TODAY, searchQuery: '<img src=x>' }
+  );
+  assert.match(html, /value="&lt;img src=x&gt;"/);
+  assert.doesNotMatch(html, /value="<img/);
+});

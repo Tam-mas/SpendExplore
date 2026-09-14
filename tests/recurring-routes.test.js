@@ -63,6 +63,54 @@ test('a "recurring" override forces a two-occurrence series into the list', () =
   assert.equal(result.series[0].confidence, 'medium');
 });
 
+test('a "recurring" override still surfaces a merchant whose gaps match no cadence at all', () => {
+  // Real-world regression: a bill paid on genuinely different days each
+  // month (21-day then 29-day gaps) matches no cadence band even in loose
+  // mode, so detectRecurring's per-merchant loop drops it entirely — forcing
+  // it recurring used to silently do nothing.
+  const irregular = {
+    ...SNAPSHOT,
+    transactions: [
+      t({ id: 'a', merchant: 'Arctel', date: '2026-06-17', amount: -59.99 }),
+      t({ id: 'b', merchant: 'Arctel', date: '2026-07-08', amount: -56.12 }),
+      t({ id: 'c', merchant: 'Arctel', date: '2026-08-06', amount: -59.99 })
+    ]
+  };
+  assert.equal(detectRecurring(irregular, { today: '2026-08-24' }).series.length, 0);
+
+  const result = applyOverrides(
+    detectRecurring(irregular, { today: '2026-08-24' }),
+    [{ merchant: 'Arctel', decision: 'recurring' }],
+    irregular,
+    { today: '2026-08-24' }
+  );
+  assert.equal(result.series.length, 1);
+  const [arctel] = result.series;
+  assert.equal(arctel.merchant, 'Arctel');
+  assert.equal(arctel.forced, true);
+  assert.equal(arctel.confidence, 'medium');
+  assert.equal(arctel.cadence, 'irregular');
+  assert.equal(arctel.occurrences, 3);
+  assert.equal(arctel.nextExpected, null);
+  assert.ok(arctel.annualCost > 0);
+});
+
+test('a single-occurrence forced merchant still shows up, with no annualised cost claimed', () => {
+  const oneOff = {
+    ...SNAPSHOT,
+    transactions: [t({ id: 'a', merchant: 'OneOff', date: '2026-08-15', amount: -40 })]
+  };
+  const result = applyOverrides(
+    detectRecurring(oneOff, { today: '2026-08-24' }),
+    [{ merchant: 'OneOff', decision: 'recurring' }],
+    oneOff,
+    { today: '2026-08-24' }
+  );
+  assert.equal(result.series.length, 1);
+  assert.equal(result.series[0].occurrences, 1);
+  assert.equal(result.series[0].annualCost, 0);
+});
+
 test('an override for a merchant with no usable history changes nothing', () => {
   const result = applyOverrides(
     detectRecurring(SNAPSHOT, { today: '2026-08-24' }),

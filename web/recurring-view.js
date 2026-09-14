@@ -1,6 +1,7 @@
 import { detectRecurring, applyOverrides } from '../lib/recurring.js';
 import { formatMoney, escapeHtml } from './charts/scale.js';
 import { transactionsForSlice } from '../lib/query/slice-transactions.js';
+import { searchTransactions } from '../lib/query/search-transactions.js';
 import { renderDrilldown } from './drilldown-panel.js';
 import { postRecurringOverride, patchTransaction, getSnapshot } from './api.js';
 import { guard } from './errors.js';
@@ -33,7 +34,7 @@ function row(item, nextLabel) {
   const merchant = escapeHtml(item.merchant);
   const nextCell = nextLabel === 'Missed'
     ? `<span class="recurring-quiet">${item.missedPeriods} missed</span>`
-    : escapeHtml(item.nextExpected);
+    : item.nextExpected ? escapeHtml(item.nextExpected) : '—';
 
   return `
     <tr data-recurring-merchant="${merchant}">
@@ -44,6 +45,8 @@ function row(item, nextLabel) {
       </td>
       <td>${escapeHtml(item.cadenceLabel)}</td>
       <td class="num">${priceCell(item)}</td>
+      <td class="num">${item.occurrences}</td>
+      <td>${escapeHtml(item.lastDate)}</td>
       <td class="num">${formatMoney(item.monthlyCost)}</td>
       <td class="num">${formatMoney(item.annualCost)}</td>
       <td>${nextCell}</td>
@@ -61,7 +64,9 @@ const table = (caption, items, nextLabel = 'Next') => `
     <thead>
       <tr>
         <th scope="col">Merchant</th><th scope="col">Cadence</th>
-        <th scope="col" class="num">Amount</th><th scope="col" class="num">Per month</th>
+        <th scope="col" class="num">Amount</th><th scope="col" class="num">Times paid</th>
+        <th scope="col">Last paid</th>
+        <th scope="col" class="num">Per month</th>
         <th scope="col" class="num">Per year</th><th scope="col">${escapeHtml(nextLabel)}</th><th scope="col"></th>
       </tr>
     </thead>
@@ -82,12 +87,17 @@ const table = (caption, items, nextLabel = 'Next') => `
  * a merchant recurring) is always confidence: 'medium' by construction, so
  * it lands here too, with no special-casing needed.
  */
-export function renderRecurring(snapshot, { today } = {}) {
+const searchBox = (query = '') => `
+  <div class="viz-search">
+    <input type="search" data-recurring-search placeholder="Search all transactions to tag as recurring" value="${escapeHtml(query)}" aria-label="Search transactions">
+  </div>`;
+
+export function renderRecurring(snapshot, { today, searchQuery = '' } = {}) {
   const {
     series, committedMonthly, committedAnnual, uncertainMonthly, uncertainAnnual
   } = recurringFor(snapshot, today ? { today } : {});
   if (!series.length) {
-    return `<p class="empty">Nothing recurring detected yet — a charge needs to appear at least three times on a consistent cadence before it counts.</p>`;
+    return `${searchBox(searchQuery)}<p class="empty">Nothing recurring detected yet — a charge needs to appear at least three times on a consistent cadence before it counts.</p>`;
   }
 
   const active = series.filter((s) => s.status === 'active');
@@ -101,7 +111,8 @@ export function renderRecurring(snapshot, { today } = {}) {
       <div class="kpi"><span>Committed yearly</span><b>${formatMoney(committedAnnual)}</b></div>
       <div class="kpi"><span>Subscriptions</span><b>${high.length} active</b></div>
     </div>
-    <p class="viz-note">Committed spend is what leaves your accounts before you decide anything, counting only the confidently-detected charges above. Click a row to see its transactions.</p>
+    ${searchBox(searchQuery)}
+    <p class="viz-note">Committed spend is what leaves your accounts before you decide anything, counting only the confidently-detected charges above. Click a row to see its transactions. Search above to tag a charge that wasn't picked up automatically.</p>
     ${high.length ? table('Active', high) : ''}
     ${uncertain.length ? `
     <p class="viz-note recurring-uncertain-note">Possibly recurring — fewer occurrences, a skipped period, or a variable amount, so these are not counted above. Subtotal: ${formatMoney(uncertainMonthly)}/month, ${formatMoney(uncertainAnnual)}/year.</p>
@@ -117,6 +128,7 @@ export function renderRecurring(snapshot, { today } = {}) {
 export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
   let current = snapshot;
   let drilldown = null;
+  let searchQuery = '';
   let reassignToken = 0;
 
   const drawDrilldown = () => {
@@ -130,8 +142,11 @@ export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
     }
   };
 
+  // `root`'s markup (including the search `<input>`) is replaced wholesale
+  // on every draw() — mirrors mountOverview's runSearch, which only redraws
+  // the drill-down panel so a keystroke never drops input focus.
   const draw = () => {
-    root.innerHTML = renderRecurring(current);
+    root.innerHTML = renderRecurring(current, { searchQuery });
     drawDrilldown();
   };
 
@@ -147,8 +162,35 @@ export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
     draw();
   }
 
+  function runSearch(term) {
+    searchQuery = term;
+    const trimmed = term.trim();
+    if (!trimmed) {
+      drilldown = null;
+      drawDrilldown();
+      return;
+    }
+    const doFetch = () => ({
+      label: `Search: "${trimmed}"`,
+      rows: searchTransactions(current, { filters: {} }, trimmed),
+      markRecurring: true
+    });
+    drilldown = doFetch();
+    drilldown.refetch = doFetch;
+    drawDrilldown();
+  }
+
   const ignore = guard(async (merchant) => {
     await postRecurringOverride(merchant, 'ignored');
+    current = await getSnapshot();
+    draw();
+  });
+
+  // Tagging a merchant found via search reuses the same override the
+  // Recurring tab's "Not recurring" button writes to, just with the
+  // opposite decision — see applyOverrides() in lib/recurring.js.
+  const markRecurring = guard(async (merchant) => {
+    await postRecurringOverride(merchant, 'recurring');
     current = await getSnapshot();
     draw();
   });
@@ -167,6 +209,7 @@ export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
   const refresh = async () => {
     current = await getSnapshot();
     drilldown = null;
+    searchQuery = '';
     draw();
   };
 
@@ -182,10 +225,20 @@ export function mountRecurring(root, { snapshot, drilldownRoot } = {}) {
     if (row) openDrilldown(row.dataset.recurringMerchant);
   }));
 
+  root.addEventListener('input', (event) => {
+    if (!event.target.matches?.('[data-recurring-search]')) return;
+    runSearch(event.target.value);
+  });
+
   if (drilldownRoot) {
-    drilldownRoot.addEventListener('click', (event) => {
-      if (event.target.closest('[data-drilldown-action="close"]')) closeDrilldown();
-    });
+    drilldownRoot.addEventListener('click', guard(async (event) => {
+      if (event.target.closest('[data-drilldown-action="close"]')) {
+        closeDrilldown();
+        return;
+      }
+      const markButton = event.target.closest('[data-drilldown-action="mark-recurring"]');
+      if (markButton) await markRecurring(markButton.dataset.drilldownMerchant);
+    }));
     drilldownRoot.addEventListener('change', (event) => {
       const row = event.target.closest('[data-drilldown-id]');
       if (row && event.target.dataset.drilldownAction === 'recategorise') {

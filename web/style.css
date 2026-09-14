@@ -270,6 +270,7 @@ kbd { font: inherit; font-size: 11px; border: 1px solid var(--line); border-bott
 .drilldown-head button { background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--viz-text-primary); padding: 2px 8px; }
 .drilldown-table { margin-top: 12px; font-size: 12px; }
 .drilldown-table select { font: inherit; font-size: 12px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--viz-surface); color: var(--viz-text-primary); }
+.drilldown-table button { padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 12px; }
 .drilldown-hide { display: flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
 .drilldown-hidden-row { opacity: .5; }
 .hidden-banner button { margin-left: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--viz-surface); color: var(--viz-text-primary); cursor: pointer; font: inherit; font-size: 12px; }

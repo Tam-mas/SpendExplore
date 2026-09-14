@@ -118,3 +118,22 @@ test('the hide-all control is unchecked, not absent, for an empty row list', () 
   assert.match(html, /data-drilldown-action="toggle-hide-all"/);
   assert.doesNotMatch(html, /toggle-hide-all"\s*checked/);
 });
+
+test('markRecurring defaults to false — existing callers get no mark-recurring column', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Alcohol', rows: ROWS, excludedIds: new Set() });
+  assert.doesNotMatch(html, /mark-recurring/);
+});
+
+test('markRecurring: true adds a per-row button carrying that row\'s merchant', () => {
+  const html = renderDrilldown(SNAPSHOT, { label: 'Search: "dan"', rows: ROWS, excludedIds: new Set(), markRecurring: true });
+  const matches = [...html.matchAll(/data-drilldown-action="mark-recurring" data-drilldown-merchant="([^"]+)"/g)];
+  assert.equal(matches.length, 2);
+  assert.ok(matches.every((m) => m[1] === 'Dan Murphy&#39;s'));
+});
+
+test('a merchant name is escaped in the mark-recurring button, never injected as markup', () => {
+  const nasty = [{ ...ROWS[0], merchant: '<img src=x onerror=alert(1)>' }];
+  const html = renderDrilldown(SNAPSHOT, { label: 'Search', rows: nasty, excludedIds: new Set(), markRecurring: true });
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /&lt;img src=x/);
+});
